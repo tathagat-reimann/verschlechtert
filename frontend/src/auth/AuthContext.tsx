@@ -7,6 +7,7 @@ import {
 } from "react";
 import { type User, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import { auth, googleProvider } from "../firebase";
+import { apiFetch } from "../api";
 
 type AuthContextValue = {
   user: User | null;
@@ -25,6 +26,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
+
+      if (firebaseUser) {
+        void apiFetch("/api/me");
+      }
     });
   }, []);
 

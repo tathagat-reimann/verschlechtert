@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"syscall"
 	"time"
 
@@ -33,6 +34,10 @@ func main() {
 		log.Fatalf("connecting to database: %v", err)
 	}
 	defer pool.Close()
+
+	if err := db.ApplyMigrations(ctx, pool); err != nil {
+		log.Fatalf("applying database migrations: %v", err)
+	}
 
 	firebaseApp, err := firebase.NewApp(ctx, nil)
 	if err != nil {
@@ -70,15 +75,62 @@ func main() {
 
 	r.Group(func(r chi.Router) {
 		r.Use(authmw.Middleware(authClient))
+		getUser := func(r *http.Request) (db.User, bool, error) {
+			firebaseUser, ok := authmw.UserFromContext(r.Context())
+			if !ok {
+				return db.User{}, false, nil
+			}
+			user, err := db.UpsertUser(
+				r.Context(),
+				pool,
+				firebaseUser.UID,
+				claimString(firebaseUser.Claims, "name"),
+				claimString(firebaseUser.Claims, "picture"),
+				claimString(firebaseUser.Claims, "email"),
+			)
+			return user, true, err
+		}
 
 		r.Get("/api/me", func(w http.ResponseWriter, r *http.Request) {
-			user, ok := authmw.UserFromContext(r.Context())
+			user, ok, err := getUser(r)
 			if !ok {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
+			if err != nil {
+				http.Error(w, "could not load user", http.StatusInternalServerError)
+				return
+			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"uid": user.UID})
+			json.NewEncoder(w).Encode(user)
+		})
+
+		r.Patch("/api/me", func(w http.ResponseWriter, r *http.Request) {
+			_, ok, err := getUser(r)
+			if !ok {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if err != nil {
+				http.Error(w, "could not load user", http.StatusInternalServerError)
+				return
+			}
+
+			var request struct {
+				Locale string `json:"locale"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil || !localePattern.MatchString(request.Locale) {
+				http.Error(w, "invalid locale", http.StatusBadRequest)
+				return
+			}
+			firebaseUser, _ := authmw.UserFromContext(r.Context())
+			updatedUser, err := db.UpdateUserLocale(r.Context(), pool, firebaseUser.UID, request.Locale)
+			if err != nil {
+				http.Error(w, "could not update user locale", http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(updatedUser)
 		})
 	})
 
@@ -116,4 +168,14 @@ func main() {
 			log.Printf("error during shutdown: %v", err)
 		}
 	}
+}
+
+var localePattern = regexp.MustCompile(`^[a-z]{2}(-[A-Z]{2})?$`)
+
+func claimString(claims map[string]interface{}, key string) string {
+	value, ok := claims[key].(string)
+	if !ok {
+		return ""
+	}
+	return value
 }
