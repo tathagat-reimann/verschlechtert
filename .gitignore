@@ -26,3 +26,18 @@ yarn-error.log*
 
 # Environment files (local configs)
 /.env.*
+.env
+.env.local
+!*.env.example
+
+# Node
+node_modules/
+dist/
+
+# Go
+backend/server
+backend/tmp/
+
+# Firebase service account keys — never commit
+serviceAccountKey.json
+*serviceAccountKey*.json
