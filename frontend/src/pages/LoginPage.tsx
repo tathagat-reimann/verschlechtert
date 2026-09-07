@@ -1,9 +1,13 @@
 import { useState } from "react";
+import { Alert, Box, Button, Paper, Stack, Typography } from "@mui/material";
+import GoogleIcon from "@mui/icons-material/Google";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useLocale } from "../i18n/LocaleContext";
 
 export function LoginPage() {
   const { user, signInWithGoogle } = useAuth();
+  const { t } = useLocale();
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -20,18 +24,31 @@ export function LoginPage() {
       await signInWithGoogle();
       navigate(redirectTo, { replace: true });
     } catch {
-      setError("Sign-in failed. Please try again.");
+      setError(t("login.signInFailed"));
     }
   };
 
   return (
-    <section style={{ maxWidth: 360, margin: "4rem auto", textAlign: "center" }}>
-      <h1>Sign in</h1>
-      <p>Sign in with your Google account to continue.</p>
-      <button type="button" onClick={handleSignIn}>
-        Sign in with Google
-      </button>
-      {error && <p role="alert">{error}</p>}
-    </section>
+    <Box sx={{ minHeight: "100svh", display: "grid", placeItems: "center", p: 3 }}>
+      <Paper elevation={0} sx={{ width: "min(100%, 420px)", p: { xs: 3, sm: 5 }, border: "1px solid", borderColor: "divider" }}>
+        <Stack spacing={3}>
+          <Box>
+            <Typography color="primary" sx={{ fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }} variant="overline">
+              {t("login.tagline")}
+            </Typography>
+            <Typography variant="h1" sx={{ fontSize: { xs: "2.5rem", sm: "3.5rem" }, mt: 1 }}>
+              {t("login.title")}
+            </Typography>
+            <Typography color="text.secondary" sx={{ mt: 2 }}>
+              {t("login.subtitle")}
+            </Typography>
+          </Box>
+          {error && <Alert severity="error" role="alert">{error}</Alert>}
+          <Button onClick={handleSignIn} startIcon={<GoogleIcon />} variant="contained" size="large" fullWidth>
+            {t("login.continueWithGoogle")}
+          </Button>
+        </Stack>
+      </Paper>
+    </Box>
   );
 }

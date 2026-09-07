@@ -1,129 +1,61 @@
 import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { Avatar, Box, Button, Container, Divider, IconButton, Menu, MenuItem, Stack, Toolbar, ToggleButton, ToggleButtonGroup, Typography, AppBar } from '@mui/material'
+import MenuIcon from '@mui/icons-material/Menu'
+import { Link as RouterLink, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
+import { useLocale } from './i18n/LocaleContext'
+import { ProductHomePage } from './pages/ProductHomePage'
+import { NewSubmissionPage } from './pages/NewSubmissionPage'
+import { MySubmissionsPage } from './pages/MySubmissionsPage'
+import { ReportDetailPage } from './pages/ReportDetailPage'
 
 function App() {
-  const [count, setCount] = useState(0)
   const { user, signOutUser } = useAuth()
+  const { locale, setLocale, t } = useLocale()
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
+  const closeMenu = () => setMenuAnchor(null)
 
   return (
-    <>
-      <section id="center">
-        <div style={{ textAlign: 'right' }}>
-          <span>{user?.displayName ?? user?.email}</span>{' '}
-          <button type="button" onClick={() => signOutUser()}>
-            Sign out
-          </button>
-        </div>
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    <Box sx={{ minHeight: "100svh", bgcolor: "background.default" }}>
+      <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: "1px solid", borderColor: "divider" }}>
+        <Container maxWidth="lg">
+          <Toolbar disableGutters sx={{ justifyContent: "space-between", gap: 2 }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+              <IconButton color="inherit" aria-label="Menu" sx={{ display: { xs: "inline-flex", sm: "none" } }} onClick={(event) => setMenuAnchor(event.currentTarget)}>
+                <MenuIcon />
+              </IconButton>
+              <Typography component={RouterLink} to="/" variant="h6" color="primary" sx={{ fontWeight: 800, textDecoration: "none" }}>Verschlechtert</Typography>
+            </Stack>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
+              <ToggleButtonGroup value={locale} exclusive size="small" onChange={(_, value) => value && setLocale(value)} aria-label="Language" sx={{ display: { xs: "none", sm: "inline-flex" } }}>
+                <ToggleButton value="de" aria-label="Deutsch">DE</ToggleButton>
+                <ToggleButton value="en" aria-label="English">EN</ToggleButton>
+              </ToggleButtonGroup>
+              <Button component={RouterLink} to="/submissions" color="inherit" sx={{ display: { xs: "none", sm: "inline-flex" } }}>{t("header.mySubmissions")}</Button>
+              <Avatar src={user?.photoURL ?? undefined} alt={user?.displayName ?? "User"} sx={{ width: 32, height: 32 }} />
+              <Typography sx={{ display: { xs: "none", sm: "block" } }}>{user?.displayName ?? user?.email}</Typography>
+              <Button onClick={() => void signOutUser()} color="inherit" sx={{ display: { xs: "none", sm: "inline-flex" } }}>{t("header.signOut")}</Button>
+            </Stack>
+          </Toolbar>
+        </Container>
+      </AppBar>
+      <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
+        <MenuItem component={RouterLink} to="/submissions" onClick={closeMenu}>{t("header.mySubmissions")}</MenuItem>
+        <Divider />
+        <MenuItem selected={locale === "de"} onClick={() => { setLocale("de"); closeMenu(); }}>Deutsch (DE)</MenuItem>
+        <MenuItem selected={locale === "en"} onClick={() => { setLocale("en"); closeMenu(); }}>English (EN)</MenuItem>
+        <Divider />
+        <MenuItem onClick={() => { closeMenu(); void signOutUser(); }}>{t("header.signOut")}</MenuItem>
+      </Menu>
+      <Container maxWidth="lg" sx={{ py: { xs: 6, md: 10 } }}>
+        <Routes>
+          <Route path="/" element={<ProductHomePage />} />
+          <Route path="/submit" element={<NewSubmissionPage />} />
+          <Route path="/submissions" element={<MySubmissionsPage />} />
+          <Route path="/reports/:id" element={<ReportDetailPage />} />
+        </Routes>
+      </Container>
+    </Box>
   )
 }
 

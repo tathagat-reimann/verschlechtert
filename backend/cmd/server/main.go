@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"regexp"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,6 +26,14 @@ import (
 
 func main() {
 	ctx := context.Background()
+
+	// Debug-level logging (API/DB call results) is only emitted outside production;
+	// set APP_ENV=production to silence it.
+	logLevel := slog.LevelDebug
+	if os.Getenv("APP_ENV") == "production" {
+		logLevel = slog.LevelInfo
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})))
 
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
@@ -90,6 +101,120 @@ func main() {
 			)
 			return user, true, err
 		}
+		getCurrentUser := func(r *http.Request) (db.User, bool, error) {
+			user, ok, err := getUser(r)
+			return user, ok, err
+		}
+
+		r.Get("/api/reports", func(w http.ResponseWriter, r *http.Request) {
+			user, ok, err := getCurrentUser(r)
+			if !ok {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if err != nil {
+				http.Error(w, "could not load user", http.StatusInternalServerError)
+				return
+			}
+			limit := 24
+			if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+				if parsed, err := strconv.Atoi(rawLimit); err == nil && parsed > 0 && parsed <= 100 {
+					limit = parsed
+				}
+			}
+			reports, err := db.ListLatestReports(r.Context(), pool, r.URL.Query().Get("q"), limit, requestLocale(r), user.ID)
+			if err != nil {
+				http.Error(w, "could not load reports", http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, reports)
+		})
+
+		r.Get("/api/reports/{id}", func(w http.ResponseWriter, r *http.Request) {
+			user, ok, err := getCurrentUser(r)
+			if !ok {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if err != nil {
+				http.Error(w, "could not load user", http.StatusInternalServerError)
+				return
+			}
+			reportID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+			if err != nil {
+				http.Error(w, "invalid report id", http.StatusBadRequest)
+				return
+			}
+			detail, err := db.GetReportDetail(r.Context(), pool, reportID, user.ID, requestLocale(r))
+			if err != nil {
+				http.Error(w, "report not found", http.StatusNotFound)
+				return
+			}
+			writeJSON(w, detail)
+		})
+
+		r.Post("/api/reports/{id}/comments", func(w http.ResponseWriter, r *http.Request) {
+			user, ok, err := getCurrentUser(r)
+			if !ok {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if err != nil {
+				http.Error(w, "could not load user", http.StatusInternalServerError)
+				return
+			}
+			reportID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+			if err != nil {
+				http.Error(w, "invalid report id", http.StatusBadRequest)
+				return
+			}
+			var request struct {
+				Body string `json:"body"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil || strings.TrimSpace(request.Body) == "" {
+				http.Error(w, "invalid comment", http.StatusBadRequest)
+				return
+			}
+			comment, err := db.AddReportComment(r.Context(), pool, reportID, user.ID, request.Body)
+			if err != nil {
+				http.Error(w, "could not add comment", http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusCreated)
+			writeJSON(w, comment)
+		})
+
+		r.Post("/api/reports/{id}/like", func(w http.ResponseWriter, r *http.Request) {
+			user, ok, err := getCurrentUser(r)
+			if !ok {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if err != nil {
+				http.Error(w, "could not load user", http.StatusInternalServerError)
+				return
+			}
+			reportID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+			if err != nil {
+				http.Error(w, "invalid report id", http.StatusBadRequest)
+				return
+			}
+			liked, count, err := db.ToggleReportLike(r.Context(), pool, reportID, user.ID)
+			if err != nil {
+				http.Error(w, "could not toggle like", http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, map[string]any{"liked": liked, "count": count})
+		})
+
+		r.Get("/api/catalog/options", func(w http.ResponseWriter, r *http.Request) {
+			options, err := db.ListCatalogOptions(r.Context(), pool, requestLocale(r))
+			if err != nil {
+				http.Error(w, "could not load catalog options", http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, options)
+		})
 
 		r.Get("/api/me", func(w http.ResponseWriter, r *http.Request) {
 			user, ok, err := getUser(r)
@@ -132,6 +257,123 @@ func main() {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(updatedUser)
 		})
+
+		r.Get("/api/me/submissions", func(w http.ResponseWriter, r *http.Request) {
+			user, ok, err := getCurrentUser(r)
+			if !ok {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if err != nil {
+				http.Error(w, "could not load user", http.StatusInternalServerError)
+				return
+			}
+			submissions, err := db.ListUserSubmissions(r.Context(), pool, user.ID, requestLocale(r))
+			if err != nil {
+				http.Error(w, "could not load submissions", http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, submissions)
+		})
+
+		r.Post("/api/submissions", func(w http.ResponseWriter, r *http.Request) {
+			user, ok, err := getCurrentUser(r)
+			if !ok {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if err != nil {
+				http.Error(w, "could not load user", http.StatusInternalServerError)
+				return
+			}
+			var request struct {
+				ProductName string           `json:"productName"`
+				BrandID     int64            `json:"brandId"`
+				CategoryID  int64            `json:"categoryId"`
+				SellerID    int64            `json:"sellerId"`
+				ProductURL  string           `json:"productUrl"`
+				Description string           `json:"description"`
+				ObservedAt  *string          `json:"observedAt"`
+				Images      []db.ReportImage `json:"images"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				http.Error(w, "invalid request", http.StatusBadRequest)
+				return
+			}
+			slog.Debug("submission request decoded", "userId", user.ID, "request", request)
+			if request.ProductName == "" || request.Description == "" || len(request.Images) > 5 {
+				http.Error(w, "invalid submission", http.StatusBadRequest)
+				return
+			}
+			var observedAt *time.Time
+			if request.ObservedAt != nil && *request.ObservedAt != "" {
+				parsed, parseErr := time.Parse("2006-01-02", *request.ObservedAt)
+				if parseErr != nil {
+					http.Error(w, "invalid observed date", http.StatusBadRequest)
+					return
+				}
+				observedAt = &parsed
+			}
+			reportID, err := db.CreateSubmission(r.Context(), pool, user.ID, db.NewSubmission{
+				ProductName: request.ProductName, BrandID: request.BrandID, CategoryID: request.CategoryID,
+				SellerID: request.SellerID, ProductURL: request.ProductURL,
+				Description: request.Description, ObservedAt: observedAt, Images: request.Images,
+			})
+			if err != nil {
+				http.Error(w, "could not create submission", http.StatusInternalServerError)
+				return
+			}
+			slog.Debug("submission created", "reportId", reportID)
+			w.WriteHeader(http.StatusCreated)
+			writeJSON(w, map[string]int64{"id": reportID})
+		})
+
+		r.Patch("/api/me/submissions/{id}", func(w http.ResponseWriter, r *http.Request) {
+			user, ok, err := getCurrentUser(r)
+			if !ok {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if err != nil {
+				http.Error(w, "could not load user", http.StatusInternalServerError)
+				return
+			}
+			reportID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+			if err != nil {
+				http.Error(w, "invalid submission id", http.StatusBadRequest)
+				return
+			}
+			var request struct {
+				ProductName string  `json:"productName"`
+				BrandID     int64   `json:"brandId"`
+				CategoryID  int64   `json:"categoryId"`
+				SellerID    int64   `json:"sellerId"`
+				Description string  `json:"description"`
+				ObservedAt  *string `json:"observedAt"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.ProductName == "" || request.Description == "" {
+				http.Error(w, "invalid submission", http.StatusBadRequest)
+				return
+			}
+			var observedAt *time.Time
+			if request.ObservedAt != nil && *request.ObservedAt != "" {
+				parsed, parseErr := time.Parse("2006-01-02", *request.ObservedAt)
+				if parseErr != nil {
+					http.Error(w, "invalid observed date", http.StatusBadRequest)
+					return
+				}
+				observedAt = &parsed
+			}
+			if err := db.UpdateUserSubmission(r.Context(), pool, user.ID, reportID, db.UpdateSubmission{
+				ProductName: request.ProductName, BrandID: request.BrandID, CategoryID: request.CategoryID,
+				SellerID: request.SellerID, Description: request.Description,
+				ObservedAt: observedAt,
+			}); err != nil {
+				http.Error(w, "could not update submission", http.StatusNotFound)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		})
 	})
 
 	port := os.Getenv("PORT")
@@ -170,7 +412,20 @@ func main() {
 	}
 }
 
+func writeJSON(w http.ResponseWriter, value interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(value)
+}
+
 var localePattern = regexp.MustCompile(`^[a-z]{2}(-[A-Z]{2})?$`)
+
+// requestLocale returns the ?locale= query param, defaulting to German if absent or unsupported.
+func requestLocale(r *http.Request) string {
+	if locale := r.URL.Query().Get("locale"); locale == "en" {
+		return "en"
+	}
+	return "de"
+}
 
 func claimString(claims map[string]interface{}, key string) string {
 	value, ok := claims[key].(string)
