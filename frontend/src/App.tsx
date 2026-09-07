@@ -21,6 +21,7 @@ import { useAuth } from "./auth/AuthContext";
 import { useLocale } from "./i18n/LocaleContext";
 import { ProductHomePage } from "./pages/ProductHomePage";
 import { NewSubmissionPage } from "./pages/NewSubmissionPage";
+import { AddReportStartPage } from "./pages/AddReportStartPage";
 import { MySubmissionsPage } from "./pages/MySubmissionsPage";
 import { ReportDetailPage } from "./pages/ReportDetailPage";
 
@@ -171,7 +172,8 @@ function App() {
       <Container maxWidth="lg" sx={{ py: { xs: 6, md: 10 } }}>
         <Routes>
           <Route path="/" element={<ProductHomePage />} />
-          <Route path="/submit" element={<NewSubmissionPage />} />
+          <Route path="/submit" element={<AddReportStartPage />} />
+          <Route path="/submit/new" element={<NewSubmissionPage />} />
           <Route path="/submissions" element={<MySubmissionsPage />} />
           <Route path="/reports/:id" element={<ReportDetailPage />} />
         </Routes>

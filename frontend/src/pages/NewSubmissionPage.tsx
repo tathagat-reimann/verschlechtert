@@ -11,7 +11,7 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { format } from "date-fns";
 import SaveIcon from "@mui/icons-material/Save";
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   createSubmission,
   getCatalogOptions,
@@ -27,13 +27,14 @@ const MAX_IMAGES = 5;
 
 export function NewSubmissionPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { t, locale } = useLocale();
   const [options, setOptions] = useState<CatalogOptions | null>(null);
   const [brand, setBrand] = useState<CatalogOption | null>(null);
   const [category, setCategory] = useState<CatalogOption | null>(null);
   const [seller, setSeller] = useState<CatalogOption | null>(null);
   const [form, setForm] = useState({
-    productName: "",
+    productName: searchParams.get("productName") ?? "",
     description: "",
     productUrl: "",
   });
