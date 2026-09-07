@@ -4,6 +4,7 @@ export const locales: Locale[] = ["de", "en"];
 
 export const translations: Record<Locale, Record<string, string>> = {
   de: {
+    "header.home": "Startseite",
     "header.mySubmissions": "Meine Meldungen",
     "header.signOut": "Abmelden",
 
@@ -73,6 +74,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     "reportDetail.ownerHint": "Dies ist deine eigene Meldung, daher kannst du hier keinen Kommentar hinzufügen.",
   },
   en: {
+    "header.home": "Home",
     "header.mySubmissions": "My submissions",
     "header.signOut": "Sign out",
 
