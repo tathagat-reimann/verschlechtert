@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -21,24 +21,67 @@ import { getLatestReports, toggleReportLike, type Report } from "../api";
 import { useLocale } from "../i18n/LocaleContext";
 import { LikeButton } from "../components/LikeButton";
 
+const PAGE_SIZE = 24;
+
 export function ProductHomePage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { t, locale } = useLocale();
   const navigate = useNavigate();
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  // Track offset/in-flight state in refs (not state) so fast successive intersection
+  // callbacks can't race ahead of React's state updates and fetch the same page twice.
+  const offsetRef = useRef(0);
+  const loadingMoreRef = useRef(false);
 
+  // Reset and load the first page whenever the search query or locale changes.
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setLoading(true);
-      void getLatestReports(query, locale)
-        .then(setReports)
+      offsetRef.current = 0;
+      void getLatestReports(query, locale, PAGE_SIZE, 0)
+        .then((page) => {
+          setReports(page.reports);
+          setHasMore(page.hasMore);
+          offsetRef.current = page.reports.length;
+        })
         .catch(() => setError(t("home.loadError")))
         .finally(() => setLoading(false));
     }, 250);
     return () => window.clearTimeout(timer);
   }, [query, locale, t]);
+
+  // Load the next page when the sentinel element at the bottom of the list becomes visible.
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || loading || !hasMore) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries[0].isIntersecting || loadingMoreRef.current) return;
+      loadingMoreRef.current = true;
+      setLoadingMore(true);
+      void getLatestReports(query, locale, PAGE_SIZE, offsetRef.current)
+        .then((page) => {
+          offsetRef.current += page.reports.length;
+          setHasMore(page.hasMore);
+          setReports((current) => {
+            const existingIds = new Set(current.map((report) => report.id));
+            return [...current, ...page.reports.filter((report) => !existingIds.has(report.id))];
+          });
+        })
+        .catch(() => setError(t("home.loadError")))
+        .finally(() => {
+          loadingMoreRef.current = false;
+          setLoadingMore(false);
+        });
+    });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [query, locale, t, loading, hasMore]);
 
   const toggleLike = async (reportId: number) => {
     try {
@@ -170,6 +213,11 @@ export function ProductHomePage() {
             </Grid>
           ))}
         </Grid>
+      )}
+      {!loading && hasMore && (
+        <Box ref={sentinelRef} sx={{ display: "grid", placeItems: "center", py: 4 }}>
+          {loadingMore && <CircularProgress size={28} />}
+        </Box>
       )}
     </Stack>
   );

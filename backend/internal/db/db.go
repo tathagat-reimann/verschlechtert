@@ -231,7 +231,8 @@ func UpdateUserLocale(ctx context.Context, pool *pgxpool.Pool, firebaseUID, loca
 	return user, nil
 }
 
-func ListLatestReports(ctx context.Context, pool *pgxpool.Pool, search string, limit int, locale string, currentUserID int64) ([]Report, error) {
+// ListLatestReports returns up to limit reports starting at offset, plus whether more are available.
+func ListLatestReports(ctx context.Context, pool *pgxpool.Pool, search string, limit, offset int, locale string, currentUserID int64) ([]Report, bool, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT dr.id, dr.description, dr.observed_at, dr.status, dr.created_at,
 		       dr.product_name, b.name, COALESCE(ct.name, c.slug), s.name,
@@ -243,11 +244,11 @@ func ListLatestReports(ctx context.Context, pool *pgxpool.Pool, search string, l
 		LEFT JOIN category_translations ct ON ct.category_id = c.id AND ct.locale = $3
 		JOIN sellers s ON s.id = dr.seller_id
 		WHERE ($1 = '' OR dr.product_name ILIKE '%' || $1 || '%' OR b.name ILIKE '%' || $1 || '%' OR s.name ILIKE '%' || $1 || '%')
-		ORDER BY dr.created_at DESC
-		LIMIT $2
-	`, search, limit, locale, currentUserID)
+		ORDER BY dr.created_at DESC, dr.id DESC
+		LIMIT $2 OFFSET $5
+	`, search, limit+1, locale, currentUserID, offset)
 	if err != nil {
-		return nil, fmt.Errorf("listing reports: %w", err)
+		return nil, false, fmt.Errorf("listing reports: %w", err)
 	}
 	defer rows.Close()
 
@@ -255,15 +256,19 @@ func ListLatestReports(ctx context.Context, pool *pgxpool.Pool, search string, l
 	for rows.Next() {
 		var report Report
 		if err := rows.Scan(&report.ID, &report.Description, &report.ObservedAt, &report.Status, &report.CreatedAt, &report.Product, &report.Brand, &report.Category, &report.Seller, &report.LikeCount, &report.LikedByMe); err != nil {
-			return nil, fmt.Errorf("scanning report: %w", err)
+			return nil, false, fmt.Errorf("scanning report: %w", err)
 		}
 		reports = append(reports, report)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("reading reports: %w", err)
+		return nil, false, fmt.Errorf("reading reports: %w", err)
 	}
-	slog.Debug("listed latest reports", "search", search, "count", len(reports))
-	return reports, nil
+	hasMore := len(reports) > limit
+	if hasMore {
+		reports = reports[:limit]
+	}
+	slog.Debug("listed latest reports", "search", search, "offset", offset, "count", len(reports), "hasMore", hasMore)
+	return reports, hasMore, nil
 }
 
 func CreateSubmission(ctx context.Context, pool *pgxpool.Pool, userID int64, submission NewSubmission) (int64, error) {

@@ -111,11 +111,13 @@ export async function updateLocale(locale: string) {
   return response.json() as Promise<Me>;
 }
 
-export async function getLatestReports(query = "", locale = "de") {
-  const params = new URLSearchParams({ locale });
+export type ReportsPage = { reports: Report[]; hasMore: boolean };
+
+export async function getLatestReports(query = "", locale = "de", limit = 24, offset = 0) {
+  const params = new URLSearchParams({ locale, limit: String(limit), offset: String(offset) });
   if (query) params.set("q", query);
   const response = await apiFetch(`/api/reports?${params.toString()}`);
-  return response.json() as Promise<Report[]>;
+  return response.json() as Promise<ReportsPage>;
 }
 
 export async function getReportDetail(id: number, locale = "de") {

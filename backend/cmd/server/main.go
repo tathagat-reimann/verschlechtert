@@ -122,12 +122,18 @@ func main() {
 					limit = parsed
 				}
 			}
-			reports, err := db.ListLatestReports(r.Context(), pool, r.URL.Query().Get("q"), limit, requestLocale(r), user.ID)
+			offset := 0
+			if rawOffset := r.URL.Query().Get("offset"); rawOffset != "" {
+				if parsed, err := strconv.Atoi(rawOffset); err == nil && parsed >= 0 {
+					offset = parsed
+				}
+			}
+			reports, hasMore, err := db.ListLatestReports(r.Context(), pool, r.URL.Query().Get("q"), limit, offset, requestLocale(r), user.ID)
 			if err != nil {
 				http.Error(w, "could not load reports", http.StatusInternalServerError)
 				return
 			}
-			writeJSON(w, reports)
+			writeJSON(w, map[string]any{"reports": reports, "hasMore": hasMore})
 		})
 
 		r.Get("/api/reports/{id}", func(w http.ResponseWriter, r *http.Request) {
