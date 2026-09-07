@@ -7,6 +7,8 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { format } from "date-fns";
 import SaveIcon from "@mui/icons-material/Save";
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import { useNavigate } from "react-router-dom";
@@ -33,9 +35,9 @@ export function NewSubmissionPage() {
   const [form, setForm] = useState({
     productName: "",
     description: "",
-    observedAt: "",
     productUrl: "",
   });
+  const [observedAt, setObservedAt] = useState<Date | null>(null);
   const [images, setImages] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -99,6 +101,7 @@ export function NewSubmissionPage() {
         brandId: brand.id,
         categoryId: category.id,
         sellerId: seller.id,
+        observedAt: observedAt ? format(observedAt, "yyyy-MM-dd") : "",
         images: uploadedImages,
       });
       navigate("/submissions");
@@ -169,12 +172,11 @@ export function NewSubmissionPage() {
           value={form.description}
           onChange={(event) => update("description", event.target.value)}
         />
-        <TextField
+        <DatePicker
           label={t("newSubmission.observedAt")}
-          type="date"
-          slotProps={{ inputLabel: { shrink: true } }}
-          value={form.observedAt}
-          onChange={(event) => update("observedAt", event.target.value)}
+          value={observedAt}
+          onChange={setObservedAt}
+          slotProps={{ textField: { fullWidth: true } }}
         />
         <TextField
           label={t("newSubmission.productUrl")}

@@ -12,6 +12,8 @@ import {
   Typography,
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { format, parseISO } from "date-fns";
 import { getCatalogOptions, getMySubmissions, toggleReportLike, updateSubmission, type CatalogOption, type CatalogOptions, type Submission } from "../api";
 import { CatalogField } from "../components/CatalogField";
 import { LikeButton } from "../components/LikeButton";
@@ -28,7 +30,7 @@ export function MySubmissionsPage() {
   const [draft, setDraft] = useState({
     productName: "",
     description: "",
-    observedAt: "",
+    observedAt: null as Date | null,
     brand: null as CatalogOption | null,
     category: null as CatalogOption | null,
     seller: null as CatalogOption | null,
@@ -51,7 +53,7 @@ export function MySubmissionsPage() {
     setDraft({
       productName: submission.product,
       description: submission.description,
-      observedAt: submission.observedAt?.slice(0, 10) ?? "",
+      observedAt: submission.observedAt ? parseISO(submission.observedAt.slice(0, 10)) : null,
       brand: { id: submission.brandId, name: submission.brand },
       category: { id: submission.categoryId, name: submission.category },
       seller: { id: submission.sellerId, name: submission.seller },
@@ -71,7 +73,7 @@ export function MySubmissionsPage() {
         categoryId: draft.category.id,
         sellerId: draft.seller.id,
         description: draft.description,
-        observedAt: draft.observedAt,
+        observedAt: draft.observedAt ? format(draft.observedAt, "yyyy-MM-dd") : "",
       });
       setSubmissions((items) =>
         items.map((item) =>
@@ -86,7 +88,7 @@ export function MySubmissionsPage() {
                 categoryId: draft.category!.id,
                 sellerId: draft.seller!.id,
                 description: draft.description,
-                observedAt: draft.observedAt,
+                observedAt: draft.observedAt ? format(draft.observedAt, "yyyy-MM-dd") : undefined,
               }
             : item,
         ),
@@ -220,14 +222,11 @@ export function MySubmissionsPage() {
                       setDraft({ ...draft, description: e.target.value })
                     }
                   />
-                  <TextField
+                  <DatePicker
                     label={t("submissions.observedAt.label")}
-                    type="date"
-                    slotProps={{ inputLabel: { shrink: true } }}
                     value={draft.observedAt}
-                    onChange={(e) =>
-                      setDraft({ ...draft, observedAt: e.target.value })
-                    }
+                    onChange={(value) => setDraft({ ...draft, observedAt: value })}
+                    slotProps={{ textField: { fullWidth: true } }}
                   />
                   <Stack direction="row" spacing={1}>
                     <Button

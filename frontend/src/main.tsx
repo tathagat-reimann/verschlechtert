@@ -6,6 +6,7 @@ import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './auth/AuthContext.tsx'
 import { LocaleProvider } from './i18n/LocaleContext.tsx'
+import { AppDatePickerProvider } from './components/AppDatePickerProvider.tsx'
 import { ProtectedRoute } from './auth/ProtectedRoute.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'
 
@@ -30,17 +31,19 @@ createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <AuthProvider>
           <LocaleProvider>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route
-                path="/*"
-                element={
-                  <ProtectedRoute>
-                    <App />
-                  </ProtectedRoute>
-                }
-              />
-            </Routes>
+            <AppDatePickerProvider>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route
+                  path="/*"
+                  element={
+                    <ProtectedRoute>
+                      <App />
+                    </ProtectedRoute>
+                  }
+                />
+              </Routes>
+            </AppDatePickerProvider>
           </LocaleProvider>
         </AuthProvider>
       </BrowserRouter>
