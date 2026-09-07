@@ -75,7 +75,7 @@ function App() {
                 <ToggleButton value="de" aria-label="Deutsch">
                   <Box
                     component="img"
-                    src="https://purecatamphetamine.github.io/country-flag-icons/3x2/DE.svg"
+                    src="/flags/DE.svg"
                     alt="Deutsch"
                     sx={{ width: 24, height: 16 }}
                   />
@@ -83,7 +83,7 @@ function App() {
                 <ToggleButton value="en" aria-label="English">
                   <Box
                     component="img"
-                    src="https://purecatamphetamine.github.io/country-flag-icons/3x2/GB.svg"
+                    src="/flags/GB.svg"
                     alt="English"
                     sx={{ width: 24, height: 16 }}
                   />
@@ -138,7 +138,7 @@ function App() {
         >
           <Box
             component="img"
-            src="https://purecatamphetamine.github.io/country-flag-icons/3x2/DE.svg"
+            src="/flags/DE.svg"
             alt=""
             sx={{ width: 20, height: 14, mr: 1 }}
           />
@@ -153,7 +153,7 @@ function App() {
         >
           <Box
             component="img"
-            src="https://purecatamphetamine.github.io/country-flag-icons/3x2/GB.svg"
+            src="/flags/GB.svg"
             alt=""
             sx={{ width: 20, height: 14, mr: 1 }}
           />
