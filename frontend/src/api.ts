@@ -57,6 +57,17 @@ export type Comment = {
   createdAt: string;
 };
 
+export type Alternative = {
+  id: number;
+  productName: string;
+  brand: string;
+  seller: string;
+  productUrl?: string;
+  authorName: string;
+  createdAt: string;
+  suggestedByMe: boolean;
+};
+
 export type ReportImage = { imageUrl: string; sortOrder: number };
 
 export type ReportDetail = {
@@ -72,9 +83,11 @@ export type ReportDetail = {
   productUrl?: string;
   images: ReportImage[];
   comments: Comment[];
+  alternatives: Alternative[];
   likeCount: number;
   likedByMe: boolean;
   isOwner: boolean;
+  hasAlternative: boolean;
 };
 
 export type CatalogOption = { id: number; name: string; slug?: string };
@@ -132,6 +145,15 @@ export async function addReportComment(id: number, body: string) {
     body: JSON.stringify({ body }),
   });
   return response.json() as Promise<Comment>;
+}
+
+export async function addReportAlternative(id: number, payload: { brandId: number; sellerId: number; productName: string; productUrl?: string }) {
+  const response = await apiFetch(`/api/reports/${id}/alternatives`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return response.json() as Promise<Alternative>;
 }
 
 export async function toggleReportLike(id: number) {

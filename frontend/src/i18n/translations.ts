@@ -73,6 +73,14 @@ export const translations: Record<Locale, Record<string, string>> = {
     "reportDetail.commentError": "Der Kommentar konnte nicht gespeichert werden.",
     "reportDetail.ownerHint": "Dies ist deine eigene Meldung, daher kannst du hier keinen Kommentar hinzufügen.",
 
+    "reportDetail.alternativesTitle": "Alternativen",
+    "reportDetail.noAlternatives": "Noch keine Alternativen vorgeschlagen.",
+    "reportDetail.suggestedBy": "vorgeschlagen von",
+    "reportDetail.alreadySuggested": "Du hast bereits eine Alternative für diese Meldung vorgeschlagen.",
+    "reportDetail.suggestAlternativeHint": "Kennst du eine bessere Alternative? Schlage sie hier vor.",
+    "reportDetail.submitAlternative": "Alternative vorschlagen",
+    "reportDetail.alternativeError": "Die Alternative konnte nicht gespeichert werden.",
+
     "addReport.overline": "Meldung hinzufügen",
     "addReport.title": "Wie heißt das Produkt?",
     "addReport.subtitle": "Wir prüfen zuerst, ob es dazu schon Meldungen gibt.",
@@ -153,6 +161,14 @@ export const translations: Record<Locale, Record<string, string>> = {
     "reportDetail.submitComment": "Post comment",
     "reportDetail.commentError": "Could not save your comment.",
     "reportDetail.ownerHint": "This is your own report, so you can't add a comment here.",
+
+    "reportDetail.alternativesTitle": "Alternatives",
+    "reportDetail.noAlternatives": "No alternatives suggested yet.",
+    "reportDetail.suggestedBy": "suggested by",
+    "reportDetail.alreadySuggested": "You've already suggested an alternative for this report.",
+    "reportDetail.suggestAlternativeHint": "Know a better alternative? Suggest it here.",
+    "reportDetail.submitAlternative": "Suggest alternative",
+    "reportDetail.alternativeError": "Could not save your alternative.",
 
     "addReport.overline": "Add a report",
     "addReport.title": "What's the product called?",

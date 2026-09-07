@@ -113,6 +113,21 @@ CREATE TABLE report_likes (
     PRIMARY KEY (report_id, user_id)
 );
 
+CREATE TABLE report_alternatives (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    report_id BIGINT NOT NULL REFERENCES deterioration_reports(id) ON DELETE CASCADE,
+    suggested_by_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    brand_id BIGINT NOT NULL REFERENCES brands(id) ON DELETE RESTRICT,
+    seller_id BIGINT NOT NULL REFERENCES sellers(id) ON DELETE RESTRICT,
+    product_name TEXT NOT NULL,
+    product_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT report_alternatives_product_name_not_blank CHECK (btrim(product_name) <> ''),
+    CONSTRAINT report_alternatives_report_user_unique UNIQUE (report_id, suggested_by_user_id)
+);
+
+CREATE INDEX report_alternatives_report_id_idx ON report_alternatives (report_id, created_at);
+
 -- Canonical "unknown" row (fixed id -999) used when a user can't find their brand/category/seller;
 -- the details go in the report description instead and get consolidated later.
 INSERT INTO brands (id, name) OVERRIDING SYSTEM VALUE VALUES (-999, 'unknown')

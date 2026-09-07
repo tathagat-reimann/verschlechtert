@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"log/slog"
 	"net/http"
@@ -188,6 +189,44 @@ func main() {
 			}
 			w.WriteHeader(http.StatusCreated)
 			writeJSON(w, comment)
+		})
+
+		r.Post("/api/reports/{id}/alternatives", func(w http.ResponseWriter, r *http.Request) {
+			user, ok, err := getCurrentUser(r)
+			if !ok {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if err != nil {
+				http.Error(w, "could not load user", http.StatusInternalServerError)
+				return
+			}
+			reportID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+			if err != nil {
+				http.Error(w, "invalid report id", http.StatusBadRequest)
+				return
+			}
+			var request struct {
+				BrandID     int64  `json:"brandId"`
+				SellerID    int64  `json:"sellerId"`
+				ProductName string `json:"productName"`
+				ProductURL  string `json:"productUrl"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.BrandID <= 0 || request.SellerID <= 0 || strings.TrimSpace(request.ProductName) == "" {
+				http.Error(w, "invalid alternative", http.StatusBadRequest)
+				return
+			}
+			alternative, err := db.AddReportAlternative(r.Context(), pool, reportID, user.ID, request.BrandID, request.SellerID, request.ProductName, request.ProductURL)
+			if err != nil {
+				if errors.Is(err, db.ErrAlternativeAlreadySuggested) {
+					http.Error(w, "you already suggested an alternative for this report", http.StatusConflict)
+					return
+				}
+				http.Error(w, "could not add alternative", http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusCreated)
+			writeJSON(w, alternative)
 		})
 
 		r.Post("/api/reports/{id}/like", func(w http.ResponseWriter, r *http.Request) {

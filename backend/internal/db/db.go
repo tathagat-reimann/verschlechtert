@@ -3,12 +3,18 @@ package db
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// ErrAlternativeAlreadySuggested is returned when a user tries to suggest a second
+// alternative for the same report (only one alternative per user per report is allowed).
+var ErrAlternativeAlreadySuggested = errors.New("alternative already suggested for this report")
 
 //go:embed migrations/001_initial_schema.sql
 var initialSchema []byte
@@ -60,27 +66,40 @@ type Comment struct {
 	CreatedAt  time.Time `json:"createdAt"`
 }
 
+type Alternative struct {
+	ID            int64     `json:"id"`
+	ProductName   string    `json:"productName"`
+	Brand         string    `json:"brand"`
+	Seller        string    `json:"seller"`
+	ProductURL    string    `json:"productUrl,omitempty"`
+	AuthorName    string    `json:"authorName"`
+	CreatedAt     time.Time `json:"createdAt"`
+	SuggestedByMe bool      `json:"suggestedByMe"`
+}
+
 type ReportImageView struct {
 	ImageURL  string `json:"imageUrl"`
 	SortOrder int16  `json:"sortOrder"`
 }
 
 type ReportDetail struct {
-	ID          int64             `json:"id"`
-	Description string            `json:"description"`
-	ObservedAt  *time.Time        `json:"observedAt,omitempty"`
-	Status      string            `json:"status"`
-	CreatedAt   time.Time         `json:"createdAt"`
-	Product     string            `json:"product"`
-	Brand       string            `json:"brand"`
-	Category    string            `json:"category"`
-	Seller      string            `json:"seller"`
-	ProductURL  string            `json:"productUrl,omitempty"`
-	Images      []ReportImageView `json:"images"`
-	Comments    []Comment         `json:"comments"`
-	LikeCount   int               `json:"likeCount"`
-	LikedByMe   bool              `json:"likedByMe"`
-	IsOwner     bool              `json:"isOwner"`
+	ID             int64             `json:"id"`
+	Description    string            `json:"description"`
+	ObservedAt     *time.Time        `json:"observedAt,omitempty"`
+	Status         string            `json:"status"`
+	CreatedAt      time.Time         `json:"createdAt"`
+	Product        string            `json:"product"`
+	Brand          string            `json:"brand"`
+	Category       string            `json:"category"`
+	Seller         string            `json:"seller"`
+	ProductURL     string            `json:"productUrl,omitempty"`
+	Images         []ReportImageView `json:"images"`
+	Comments       []Comment         `json:"comments"`
+	Alternatives   []Alternative     `json:"alternatives"`
+	LikeCount      int               `json:"likeCount"`
+	LikedByMe      bool              `json:"likedByMe"`
+	IsOwner        bool              `json:"isOwner"`
+	HasAlternative bool              `json:"hasAlternative"`
 }
 
 type UpdateSubmission struct {
@@ -408,6 +427,37 @@ func GetReportDetail(ctx context.Context, pool *pgxpool.Pool, reportID, currentU
 	if err := commentRows.Err(); err != nil {
 		return ReportDetail{}, fmt.Errorf("reading comments: %w", err)
 	}
+
+	detail.Alternatives = make([]Alternative, 0)
+	altRows, err := pool.Query(ctx, `
+		SELECT ra.id, ra.product_name, b.name, s.name, COALESCE(ra.product_url, ''), u.display_name, ra.created_at, ra.suggested_by_user_id
+		FROM report_alternatives ra
+		JOIN brands b ON b.id = ra.brand_id
+		JOIN sellers s ON s.id = ra.seller_id
+		JOIN users u ON u.id = ra.suggested_by_user_id
+		WHERE ra.report_id = $1
+		ORDER BY ra.created_at ASC
+	`, reportID)
+	if err != nil {
+		return ReportDetail{}, fmt.Errorf("loading alternatives: %w", err)
+	}
+	for altRows.Next() {
+		var alt Alternative
+		var suggestedByUserID int64
+		if err := altRows.Scan(&alt.ID, &alt.ProductName, &alt.Brand, &alt.Seller, &alt.ProductURL, &alt.AuthorName, &alt.CreatedAt, &suggestedByUserID); err != nil {
+			altRows.Close()
+			return ReportDetail{}, fmt.Errorf("scanning alternative: %w", err)
+		}
+		alt.SuggestedByMe = suggestedByUserID == currentUserID
+		if alt.SuggestedByMe {
+			detail.HasAlternative = true
+		}
+		detail.Alternatives = append(detail.Alternatives, alt)
+	}
+	altRows.Close()
+	if err := altRows.Err(); err != nil {
+		return ReportDetail{}, fmt.Errorf("reading alternatives: %w", err)
+	}
 	return detail, nil
 }
 
@@ -428,6 +478,35 @@ func AddReportComment(ctx context.Context, pool *pgxpool.Pool, reportID, userID 
 		return Comment{}, fmt.Errorf("adding comment: %w", err)
 	}
 	return comment, nil
+}
+
+// AddReportAlternative records userID's suggested alternative product for a report.
+// Returns ErrAlternativeAlreadySuggested if userID already suggested one for this report.
+func AddReportAlternative(ctx context.Context, pool *pgxpool.Pool, reportID, userID, brandID, sellerID int64, productName, productURL string) (Alternative, error) {
+	var alt Alternative
+	err := pool.QueryRow(ctx, `
+		WITH inserted AS (
+			INSERT INTO report_alternatives (report_id, suggested_by_user_id, brand_id, seller_id, product_name, product_url)
+			VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''))
+			RETURNING id, product_name, COALESCE(product_url, '') as product_url, created_at
+		)
+		SELECT inserted.id, inserted.product_name, b.name, s.name, inserted.product_url, u.display_name, inserted.created_at
+		FROM inserted
+		JOIN brands b ON b.id = $3
+		JOIN sellers s ON s.id = $4
+		JOIN users u ON u.id = $2
+	`, reportID, userID, brandID, sellerID, productName, productURL).Scan(
+		&alt.ID, &alt.ProductName, &alt.Brand, &alt.Seller, &alt.ProductURL, &alt.AuthorName, &alt.CreatedAt,
+	)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return Alternative{}, ErrAlternativeAlreadySuggested
+		}
+		return Alternative{}, fmt.Errorf("adding alternative: %w", err)
+	}
+	alt.SuggestedByMe = true
+	return alt, nil
 }
 
 // ToggleReportLike adds or removes userID's like on a report and returns the new state.

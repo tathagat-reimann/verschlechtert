@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { Alert, Box, Button, Chip, CircularProgress, Divider, Paper, Stack, TextField, Typography } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SendIcon from "@mui/icons-material/Send";
+import AddIcon from "@mui/icons-material/Add";
 import { Link as RouterLink, useParams } from "react-router-dom";
-import { addReportComment, getReportDetail, toggleReportLike, type ReportDetail } from "../api";
+import { addReportAlternative, addReportComment, getCatalogOptions, getReportDetail, toggleReportLike, type CatalogOption, type CatalogOptions, type ReportDetail } from "../api";
 import { useLocale } from "../i18n/LocaleContext";
 import { LikeButton } from "../components/LikeButton";
+import { CatalogField } from "../components/CatalogField";
 
 function formatDateTime(iso: string, locale: string) {
   const date = new Date(iso);
@@ -25,11 +27,22 @@ export function ReportDetailPage() {
   const [commentBody, setCommentBody] = useState("");
   const [commentError, setCommentError] = useState<string | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [options, setOptions] = useState<CatalogOptions | null>(null);
+  const [altBrand, setAltBrand] = useState<CatalogOption | null>(null);
+  const [altSeller, setAltSeller] = useState<CatalogOption | null>(null);
+  const [altProductName, setAltProductName] = useState("");
+  const [altProductUrl, setAltProductUrl] = useState("");
+  const [altError, setAltError] = useState<string | null>(null);
+  const [submittingAlt, setSubmittingAlt] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     void getReportDetail(reportId, locale).then(setReport).catch(() => setError(t("reportDetail.loadError"))).finally(() => setLoading(false));
   }, [reportId, locale, t]);
+
+  useEffect(() => {
+    void getCatalogOptions(locale).then(setOptions).catch(() => setAltError(t("newSubmission.catalogLoadError")));
+  }, [locale, t]);
 
   const toggleLike = async () => {
     if (!report) return;
@@ -53,6 +66,29 @@ export function ReportDetailPage() {
       setCommentError(t("reportDetail.commentError"));
     } finally {
       setSubmittingComment(false);
+    }
+  };
+
+  const submitAlternative = async () => {
+    if (!report || !altBrand || !altSeller || !altProductName.trim()) return;
+    setSubmittingAlt(true);
+    setAltError(null);
+    try {
+      const alternative = await addReportAlternative(report.id, {
+        brandId: altBrand.id,
+        sellerId: altSeller.id,
+        productName: altProductName,
+        productUrl: altProductUrl,
+      });
+      setReport({ ...report, alternatives: [...report.alternatives, alternative], hasAlternative: true });
+      setAltBrand(null);
+      setAltSeller(null);
+      setAltProductName("");
+      setAltProductUrl("");
+    } catch {
+      setAltError(t("reportDetail.alternativeError"));
+    } finally {
+      setSubmittingAlt(false);
     }
   };
 
@@ -138,6 +174,80 @@ export function ReportDetailPage() {
                 sx={{ alignSelf: "flex-start" }}
               >
                 {t("reportDetail.submitComment")}
+              </Button>
+            </Stack>
+          )}
+        </Stack>
+      </Paper>
+      <Paper variant="outlined" sx={{ p: { xs: 3, md: 5 } }}>
+        <Stack spacing={2}>
+          <Typography variant="h6">{t("reportDetail.alternativesTitle")}</Typography>
+          {report.alternatives.length === 0 ? (
+            <Typography color="text.secondary">{t("reportDetail.noAlternatives")}</Typography>
+          ) : (
+            <Stack spacing={2}>
+              {report.alternatives.map((alternative) => (
+                <Box key={alternative.id}>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: "baseline" }}>
+                    <Typography variant="subtitle2">{alternative.productName}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {formatDateTime(alternative.createdAt, locale)}
+                    </Typography>
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary">
+                    {alternative.brand} · {alternative.seller} · {t("reportDetail.suggestedBy")} {alternative.authorName}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          )}
+          {report.hasAlternative ? (
+            <Alert severity="info">{t("reportDetail.alreadySuggested")}</Alert>
+          ) : (
+            <Stack spacing={1.5}>
+              <Divider />
+              <Typography color="text.secondary">{t("reportDetail.suggestAlternativeHint")}</Typography>
+              <TextField
+                label={t("newSubmission.productName")}
+                value={altProductName}
+                onChange={(event) => setAltProductName(event.target.value)}
+              />
+              <CatalogField
+                label={t("newSubmission.brand")}
+                loadingLabel={t("newSubmission.brandLoading")}
+                searchLabel={t("newSubmission.brandSearch")}
+                notFoundSuffix={t("newSubmission.notFoundSuffix")}
+                notFoundHint={t("newSubmission.notFoundHint")}
+                options={options?.brands}
+                notFoundOption={options?.unspecifiedBrand}
+                value={altBrand}
+                onChange={setAltBrand}
+              />
+              <CatalogField
+                label={t("newSubmission.seller")}
+                loadingLabel={t("newSubmission.sellerLoading")}
+                searchLabel={t("newSubmission.sellerSearch")}
+                notFoundSuffix={t("newSubmission.notFoundSuffix")}
+                notFoundHint={t("newSubmission.notFoundHint")}
+                options={options?.sellers}
+                notFoundOption={options?.unspecifiedSeller}
+                value={altSeller}
+                onChange={setAltSeller}
+              />
+              <TextField
+                label={t("newSubmission.productUrl")}
+                value={altProductUrl}
+                onChange={(event) => setAltProductUrl(event.target.value)}
+              />
+              {altError && <Alert severity="error">{altError}</Alert>}
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => void submitAlternative()}
+                disabled={submittingAlt || !altBrand || !altSeller || !altProductName.trim() || !options}
+                sx={{ alignSelf: "flex-start" }}
+              >
+                {t("reportDetail.submitAlternative")}
               </Button>
             </Stack>
           )}
