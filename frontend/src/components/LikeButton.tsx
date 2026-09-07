@@ -1,6 +1,7 @@
-import { IconButton, Stack, Typography } from "@mui/material";
+import { IconButton, Stack } from "@mui/material";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
+import Badge from '@mui/material/Badge';
 
 export function LikeButton({ liked, count, onToggle, label }: {
   liked: boolean;
@@ -11,9 +12,13 @@ export function LikeButton({ liked, count, onToggle, label }: {
   return (
     <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
       <IconButton size="small" color={liked ? "primary" : "default"} onClick={onToggle} aria-label={label}>
+        <Badge
+        badgeContent={count}
+        color="secondary"
+      >
         {liked ? <ThumbUpIcon fontSize="small" /> : <ThumbUpOutlinedIcon fontSize="small" />}
+        </Badge>
       </IconButton>
-      <Typography variant="body2" color="text.secondary">{count}</Typography>
     </Stack>
   );
 }
