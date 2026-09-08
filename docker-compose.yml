@@ -24,9 +24,11 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-appdb}?sslmode=disable
+      DATABASE_URL: postgres://app:app@postgres:5432/appdb?sslmode=disable
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase_service_account
       PORT: "8080"
+      APP_ENV: ${APP_ENV:-development}
+      CORS_ALLOWED_ORIGIN: http://localhost:5173
     secrets:
       - firebase_service_account
     ports:

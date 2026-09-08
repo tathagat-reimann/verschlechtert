@@ -26,6 +26,7 @@ type User struct {
 	PhotoURL    string `json:"photoUrl"`
 	Email       string `json:"email"`
 	Locale      string `json:"locale"`
+	Active      bool   `json:"active"` // default true, set to false if user is banned or deleted
 }
 
 type Report struct {

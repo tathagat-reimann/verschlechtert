@@ -38,18 +38,19 @@ CREATE TABLE category_translations (
     CONSTRAINT category_translations_name_not_blank CHECK (btrim(name) <> '')
 );
 
-CREATE TABLE users (
+CREATE TABLE appuser (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     firebase_uid TEXT NOT NULL UNIQUE,
     display_name TEXT NOT NULL DEFAULT 'Anonymous user',
     photo_url TEXT,
     email TEXT,
     locale TEXT NOT NULL DEFAULT 'de',
+    active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT users_firebase_uid_not_blank CHECK (btrim(firebase_uid) <> ''),
-    CONSTRAINT users_locale_valid CHECK (locale ~ '^[a-z]{2}(-[A-Z]{2})?$')
+    CONSTRAINT user_firebase_uid_not_blank CHECK (btrim(firebase_uid) <> ''),
+    CONSTRAINT user_locale_valid CHECK (locale ~ '^[a-z]{2}(-[A-Z]{2})?$')
 );
 
 CREATE TABLE deterioration_reports (

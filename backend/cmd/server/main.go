@@ -21,6 +21,7 @@ import (
 	"github.com/go-chi/cors"
 
 	authmw "verschlechtert/backend/internal/auth"
+	"verschlechtert/backend/internal/config"
 	"verschlechtert/backend/internal/db"
 	"verschlechtert/backend/internal/httpmw"
 )
@@ -28,18 +29,17 @@ import (
 func main() {
 	ctx := context.Background()
 
+	cfg := config.Load()
+
 	// Debug-level logging (API/DB call results) is only emitted outside production;
 	// set APP_ENV=production to silence it.
 	logLevel := slog.LevelDebug
-	if os.Getenv("APP_ENV") == "production" {
+	if cfg.AppEnvironment == "production" {
 		logLevel = slog.LevelInfo
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})))
 
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		log.Fatal("DATABASE_URL environment variable is required")
-	}
+	databaseURL := cfg.DatabaseURL
 
 	pool, err := db.NewPool(ctx, databaseURL)
 	if err != nil {
@@ -61,16 +61,13 @@ func main() {
 		log.Fatalf("initializing firebase auth client: %v", err)
 	}
 
-	allowedOrigin := os.Getenv("CORS_ALLOWED_ORIGIN")
-	if allowedOrigin == "" {
-		allowedOrigin = "http://localhost:5173"
-	}
+	allowedOrigin := cfg.AllowedOrigins
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{allowedOrigin},
+		AllowedOrigins:   allowedOrigin,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
 		AllowCredentials: true,
@@ -100,6 +97,9 @@ func main() {
 				claimString(firebaseUser.Claims, "picture"),
 				claimString(firebaseUser.Claims, "email"),
 			)
+			if !user.Active {
+				return db.User{}, false, errors.New("user is inactive")
+			}
 			return user, true, err
 		}
 		getCurrentUser := func(r *http.Request) (db.User, bool, error) {
@@ -421,10 +421,7 @@ func main() {
 		})
 	})
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
+	port := cfg.Port
 
 	srv := &http.Server{
 		Addr:    ":" + port,
