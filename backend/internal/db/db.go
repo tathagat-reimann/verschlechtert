@@ -16,7 +16,7 @@ import (
 // alternative for the same report (only one alternative per user per report is allowed).
 var ErrAlternativeAlreadySuggested = errors.New("alternative already suggested for this report")
 
-//go:embed migrations/001_initial_schema.sql
+// //go:embed migrations/001_initial_schema.sql
 var initialSchema []byte
 
 type User struct {

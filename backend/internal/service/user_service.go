@@ -28,7 +28,7 @@ func (s *UserService) Upsert(ctx context.Context, firebaseUID, displayName, phot
 }
 
 func (s *UserService) UpdateLocale(ctx context.Context, user *domain.User, locale string) error {
-	user.Locale = locale
+	user.UpdateLocale(locale)
 
 	err := s.userRepo.Save(ctx, user)
 	if err != nil {
@@ -39,7 +39,7 @@ func (s *UserService) UpdateLocale(ctx context.Context, user *domain.User, local
 }
 
 func (s *UserService) Deactivate(ctx context.Context, user *domain.User) error {
-	user.Active = false
+	user.Deactivate()
 
 	err := s.userRepo.Save(ctx, user)
 	if err != nil {

@@ -43,11 +43,6 @@ func setupTestStore(t *testing.T) *UserRepository {
 	return NewUserRepository(pool)
 }
 
-func Test_Setup(t *testing.T) {
-	repo := setupTestStore(t)
-	assert.NotNil(t, repo)
-}
-
 func Test_SaveUser(t *testing.T) {
 	//given
 

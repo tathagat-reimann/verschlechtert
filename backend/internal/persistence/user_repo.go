@@ -40,7 +40,7 @@ func (repo *UserRepository) Save(ctx context.Context, user *domain.User) error {
 		active = COALESCE(EXCLUDED.active, appuser.active),
 		updated_at   = now(),
 		last_seen_at = now()
-	`, user.FirebaseUID, user.DisplayName, user.PhotoURL, user.Email, user.Locale)
+	`, user.GetFirebaseUID(), user.GetDisplayName(), user.GetPhotoURL(), user.GetEmail(), user.GetLocale())
 
 	// TODO - return the updated user object if needed
 
