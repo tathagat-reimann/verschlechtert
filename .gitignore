@@ -37,6 +37,7 @@ dist/
 # Go
 backend/server
 backend/tmp/
+backend/cover.out
 
 # Firebase service account keys — never commit
 serviceAccountKey.json
