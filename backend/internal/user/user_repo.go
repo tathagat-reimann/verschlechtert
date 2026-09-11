@@ -1,11 +1,9 @@
-package persistence
+package user
 
 import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"verschlechtert/backend/internal/domain"
 )
 
 type UserRepository struct {
@@ -16,8 +14,9 @@ func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
 	return &UserRepository{pool: pool}
 }
 
-func (repo *UserRepository) Save(ctx context.Context, user *domain.User) error {
-	_, err := repo.pool.Exec(ctx, `
+func (repo *UserRepository) Save(ctx context.Context, user *User) (*User, error) {
+	persistedUser := &User{}
+	err := repo.pool.QueryRow(ctx, `
 	INSERT INTO appuser (
 		firebase_uid,
 		display_name,
@@ -37,15 +36,29 @@ func (repo *UserRepository) Save(ctx context.Context, user *domain.User) error {
 		photo_url    = COALESCE(NULLIF(EXCLUDED.photo_url, ''), appuser.photo_url),
 		email        = COALESCE(NULLIF(EXCLUDED.email, ''), appuser.email),
 		locale       = COALESCE(NULLIF(EXCLUDED.locale, ''), appuser.locale),
-		active = COALESCE(EXCLUDED.active, appuser.active),
 		updated_at   = now(),
 		last_seen_at = now()
-	`, user.GetFirebaseUID(), user.GetDisplayName(), user.GetPhotoURL(), user.GetEmail(), user.GetLocale())
-
-	// TODO - return the updated user object if needed
-
+	RETURNING id, firebase_uid, display_name, COALESCE(photo_url, ''), COALESCE(email, ''), locale, active
+	`, user.GetFirebaseUID(), user.GetDisplayName(), user.GetPhotoURL(), user.GetEmail(), user.GetLocale()).Scan(
+		&persistedUser.id,
+		&persistedUser.firebaseUID,
+		&persistedUser.displayName,
+		&persistedUser.photoURL,
+		&persistedUser.email,
+		&persistedUser.locale,
+		&persistedUser.active,
+	)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return persistedUser, nil
+}
+
+func (repo *UserRepository) Deactivate(ctx context.Context, userID int64) error {
+	_, err := repo.pool.Exec(ctx, `
+		UPDATE appuser
+		SET active = false, updated_at = now()
+		WHERE id = $1
+	`, userID)
+	return err
 }

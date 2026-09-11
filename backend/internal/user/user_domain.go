@@ -1,4 +1,4 @@
-package domain
+package user
 
 import "errors"
 
@@ -24,9 +24,18 @@ func (u *User) GetEmail() string { return u.email }
 
 func (u *User) GetLocale() string { return u.locale }
 
-func (u *User) GetActive() bool { return u.active }
+func (u *User) IsActive() bool { return u.active }
 
-func (u *User) UpdateLocale(locale string) { u.locale = locale }
+func normalizeLocale(locale string) string {
+	switch locale {
+	case "de", "en":
+		return locale
+	default:
+		return "de"
+	}
+}
+
+func (u *User) UpdateLocale(locale string) { u.locale = normalizeLocale(locale) }
 
 func (u *User) Deactivate() { u.active = false }
 
@@ -43,9 +52,7 @@ func NewUser(firebaseUID, displayName, photoURL, email, locale string) (*User, e
 		return nil, errors.New("email cannot be empty")
 	}
 
-	if locale == "" {
-		locale = "de" // default to German if locale is not provided
-	}
+	locale = normalizeLocale(locale)
 
 	return &User{
 		firebaseUID: firebaseUID,

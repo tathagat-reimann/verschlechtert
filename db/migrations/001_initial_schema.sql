@@ -1,42 +1,46 @@
-CREATE TABLE brands (
+-- Apply with
+-- docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U app -d appdb < db/migrations/001_initial_schema.sql
+
+DROP TABLE IF EXISTS report_alternative;
+DROP TABLE IF EXISTS report_like;
+DROP TABLE IF EXISTS report_comment;
+DROP TABLE IF EXISTS report_image;
+DROP TABLE IF EXISTS report;
+DROP TABLE IF EXISTS appuser;
+DROP TABLE IF EXISTS category;
+DROP TABLE IF EXISTS seller;
+DROP TABLE IF EXISTS brand;
+
+CREATE TABLE brand (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT brands_name_not_blank CHECK (btrim(name) <> '')
+    CONSTRAINT brand_name_not_blank CHECK (btrim(name) <> '')
 );
 
-CREATE UNIQUE INDEX brands_name_ci_idx ON brands (lower(name));
+CREATE UNIQUE INDEX brand_name_ci_idx ON brand (lower(name));
 
-CREATE TABLE sellers (
+CREATE TABLE seller (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name TEXT NOT NULL,
     website_url TEXT,
-    country_code TEXT NOT NULL DEFAULT 'DE',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT sellers_name_not_blank CHECK (btrim(name) <> ''),
-    CONSTRAINT sellers_country_code_valid CHECK (country_code ~ '^[A-Z]{2}$')
+    CONSTRAINT seller_name_not_blank CHECK (btrim(name) <> '')
 );
 
-CREATE UNIQUE INDEX sellers_name_ci_idx ON sellers (lower(name));
+CREATE UNIQUE INDEX seller_name_ci_idx ON seller (lower(name));
 
-CREATE TABLE categories (
+CREATE TABLE category (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    slug TEXT NOT NULL,
-    parent_id BIGINT REFERENCES categories(id) ON DELETE RESTRICT,
+    name_de TEXT NOT NULL,
+    name_en TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT categories_slug_not_blank CHECK (btrim(slug) <> '')
+    CONSTRAINT category_name_de_not_blank CHECK (btrim(name_de) <> ''),
+    CONSTRAINT category_name_en_not_blank CHECK (btrim(name_en) <> '')
 );
 
-CREATE UNIQUE INDEX categories_slug_ci_idx ON categories (lower(slug));
-
-CREATE TABLE category_translations (
-    category_id BIGINT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-    locale TEXT NOT NULL,
-    name TEXT NOT NULL,
-    PRIMARY KEY (category_id, locale),
-    CONSTRAINT category_translations_locale_not_blank CHECK (btrim(locale) <> ''),
-    CONSTRAINT category_translations_name_not_blank CHECK (btrim(name) <> '')
-);
+CREATE UNIQUE INDEX category_name_de_ci_idx ON category (lower(name_de));
+CREATE UNIQUE INDEX category_name_en_ci_idx ON category (lower(name_en));
 
 CREATE TABLE appuser (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -50,93 +54,97 @@ CREATE TABLE appuser (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT user_firebase_uid_not_blank CHECK (btrim(firebase_uid) <> ''),
-    CONSTRAINT user_locale_valid CHECK (locale ~ '^[a-z]{2}(-[A-Z]{2})?$')
+    CONSTRAINT user_locale_valid CHECK (locale IN ('de', 'en'))
 );
 
-CREATE TABLE deterioration_reports (
+CREATE TABLE report (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    seller_id BIGINT NOT NULL REFERENCES sellers(id) ON DELETE RESTRICT,
-    brand_id BIGINT NOT NULL REFERENCES brands(id) ON DELETE RESTRICT,
-    category_id BIGINT NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
-    submitted_by_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    seller_id BIGINT NOT NULL REFERENCES seller(id) ON DELETE RESTRICT,
+    brand_id BIGINT NOT NULL REFERENCES brand(id) ON DELETE RESTRICT,
+    category_id BIGINT NOT NULL REFERENCES category(id) ON DELETE RESTRICT,
+    submitted_by_user_id BIGINT NOT NULL REFERENCES appuser(id) ON DELETE RESTRICT,
     product_name TEXT NOT NULL,
     product_url TEXT,
     description TEXT NOT NULL,
     observed_at DATE,
-    status TEXT NOT NULL DEFAULT 'pending',
+    active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT deterioration_reports_product_name_not_blank CHECK (btrim(product_name) <> ''),
-    CONSTRAINT deterioration_reports_description_not_blank CHECK (btrim(description) <> ''),
-    CONSTRAINT deterioration_reports_status_valid CHECK (status IN ('pending', 'approved', 'rejected'))
+    CONSTRAINT report_product_name_not_blank CHECK (btrim(product_name) <> ''),
+    CONSTRAINT report_description_not_blank CHECK (btrim(description) <> '')
 );
 
-CREATE INDEX deterioration_reports_seller_id_idx
-    ON deterioration_reports (seller_id);
-CREATE INDEX deterioration_reports_brand_id_idx
-    ON deterioration_reports (brand_id);
-CREATE INDEX deterioration_reports_category_id_idx
-    ON deterioration_reports (category_id);
-CREATE INDEX deterioration_reports_submitted_by_user_id_idx
-    ON deterioration_reports (submitted_by_user_id);
-CREATE INDEX deterioration_reports_status_created_at_idx
-    ON deterioration_reports (status, created_at DESC);
+CREATE INDEX report_seller_id_idx
+    ON report (seller_id);
+CREATE INDEX report_brand_id_idx
+    ON report (brand_id);
+CREATE INDEX report_category_id_idx
+    ON report (category_id);
+CREATE INDEX report_submitted_by_user_id_idx
+    ON report (submitted_by_user_id);
+CREATE INDEX report_active_created_at_idx
+    ON report (created_at DESC)
+    WHERE active = true;
+CREATE INDEX report_user_active_created_at_idx
+    ON report (submitted_by_user_id, created_at DESC)
+    WHERE active = true;
 
-CREATE TABLE report_images (
+CREATE TABLE report_image (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    report_id BIGINT NOT NULL REFERENCES deterioration_reports(id) ON DELETE CASCADE,
+    report_id BIGINT NOT NULL REFERENCES report(id) ON DELETE CASCADE,
     storage_path TEXT NOT NULL,
     image_url TEXT NOT NULL,
     sort_order SMALLINT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT report_images_storage_path_not_blank CHECK (btrim(storage_path) <> ''),
-    CONSTRAINT report_images_image_url_not_blank CHECK (btrim(image_url) <> ''),
-    CONSTRAINT report_images_sort_order_valid CHECK (sort_order BETWEEN 1 AND 5),
-    CONSTRAINT report_images_report_order_unique UNIQUE (report_id, sort_order)
+    CONSTRAINT report_image_storage_path_not_blank CHECK (btrim(storage_path) <> ''),
+    CONSTRAINT report_image_image_url_not_blank CHECK (btrim(image_url) <> ''),
+    CONSTRAINT report_image_sort_order_valid CHECK (sort_order BETWEEN 1 AND 5),
+    CONSTRAINT report_image_report_order_unique UNIQUE (report_id, sort_order)
 );
 
-CREATE INDEX report_images_report_id_idx ON report_images (report_id);
+CREATE INDEX report_image_report_id_idx ON report_image (report_id);
 
-CREATE TABLE report_comments (
+CREATE TABLE report_comment (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    report_id BIGINT NOT NULL REFERENCES deterioration_reports(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    report_id BIGINT NOT NULL REFERENCES report(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES appuser(id) ON DELETE RESTRICT,
     body TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT report_comments_body_not_blank CHECK (btrim(body) <> '')
+    CONSTRAINT report_comment_body_not_blank CHECK (btrim(body) <> '')
 );
 
-CREATE INDEX report_comments_report_id_idx ON report_comments (report_id, created_at);
+CREATE INDEX report_comment_report_id_idx ON report_comment (report_id, created_at);
 
-CREATE TABLE report_likes (
-    report_id BIGINT NOT NULL REFERENCES deterioration_reports(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+CREATE TABLE report_like (
+    report_id BIGINT NOT NULL REFERENCES report(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES appuser(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (report_id, user_id)
 );
 
-CREATE TABLE report_alternatives (
+CREATE TABLE report_alternative (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    report_id BIGINT NOT NULL REFERENCES deterioration_reports(id) ON DELETE CASCADE,
-    suggested_by_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    brand_id BIGINT NOT NULL REFERENCES brands(id) ON DELETE RESTRICT,
-    seller_id BIGINT NOT NULL REFERENCES sellers(id) ON DELETE RESTRICT,
+    report_id BIGINT NOT NULL REFERENCES report(id) ON DELETE CASCADE,
+    suggested_by_user_id BIGINT NOT NULL REFERENCES appuser(id) ON DELETE RESTRICT,
+    brand_id BIGINT NOT NULL REFERENCES brand(id) ON DELETE RESTRICT,
+    seller_id BIGINT NOT NULL REFERENCES seller(id) ON DELETE RESTRICT,
     product_name TEXT NOT NULL,
     product_url TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT report_alternatives_product_name_not_blank CHECK (btrim(product_name) <> ''),
-    CONSTRAINT report_alternatives_report_user_unique UNIQUE (report_id, suggested_by_user_id)
+    CONSTRAINT report_alternative_product_name_not_blank CHECK (btrim(product_name) <> ''),
+    CONSTRAINT report_alternative_report_user_unique UNIQUE (report_id, suggested_by_user_id)
 );
 
-CREATE INDEX report_alternatives_report_id_idx ON report_alternatives (report_id, created_at);
+CREATE INDEX report_alternative_report_id_idx ON report_alternative (report_id, created_at);
 
 -- Canonical "unknown" row (fixed id -999) used when a user can't find their brand/category/seller;
 -- the details go in the report description instead and get consolidated later.
-INSERT INTO brands (id, name) OVERRIDING SYSTEM VALUE VALUES (-999, 'unknown')
+INSERT INTO brand (id, name) OVERRIDING SYSTEM VALUE VALUES (-999, 'unknown')
     ON CONFLICT (id) DO NOTHING;
-INSERT INTO sellers (id, name) OVERRIDING SYSTEM VALUE VALUES (-999, 'unknown')
+INSERT INTO seller (id, name) OVERRIDING SYSTEM VALUE VALUES (-999, 'unknown')
     ON CONFLICT (id) DO NOTHING;
-INSERT INTO categories (id, slug) OVERRIDING SYSTEM VALUE VALUES (-999, 'unknown')
+INSERT INTO category (id, name_de, name_en) OVERRIDING SYSTEM VALUE VALUES (-999, 'unknown', 'unknown')
     ON CONFLICT (id) DO NOTHING;
-INSERT INTO category_translations (category_id, locale, name)
-    VALUES (-999, 'de', 'unbekannt'), (-999, 'en', 'unknown')
-    ON CONFLICT (category_id, locale) DO NOTHING;
+
+-- add internal user
+INSERT INTO appuser (id, firebase_uid, display_name, email) OVERRIDING SYSTEM VALUE VALUES (-999, 'internal', 'Internal User', 'internal@example.com')
+    ON CONFLICT (id) DO NOTHING;

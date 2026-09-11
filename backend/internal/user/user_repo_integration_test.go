@@ -3,13 +3,12 @@
 
 // can be run with `go test -tags=integration`
 
-package persistence
+package user
 
 import (
 	"context"
 	"testing"
 	"verschlechtert/backend/internal/config"
-	"verschlechtert/backend/internal/domain"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -50,9 +49,34 @@ func Test_SaveUser(t *testing.T) {
 	assert.NotNil(t, repo)
 
 	// when
-	user, _ := domain.NewUser("f", "d", "p", "e", "")
-	err := repo.Save(t.Context(), user)
+	user, _ := NewUser("f", "d", "p", "e", "")
+	persistedUser, err := repo.Save(t.Context(), user)
 
 	// then
 	assert.NoError(t, err)
+	assert.NotNil(t, persistedUser)
+	assert.NotZero(t, persistedUser.GetID())
+}
+
+func Test_DeactivateUser(t *testing.T) {
+	//given
+	repo := setupTestStore(t)
+	assert.NotNil(t, repo)
+
+	// when
+	user, _ := NewUser("f", "d", "p", "e", "")
+	persistedUser, err := repo.Save(t.Context(), user)
+	assert.NoError(t, err)
+	assert.NotNil(t, persistedUser)
+
+	err = repo.Deactivate(t.Context(), persistedUser.GetID())
+
+	// then
+	assert.NoError(t, err)
+
+	// Verify that the user is deactivated
+	deactivatedUser, err := repo.Save(t.Context(), persistedUser)
+	assert.NoError(t, err)
+	assert.NotNil(t, deactivatedUser)
+	assert.False(t, deactivatedUser.IsActive())
 }

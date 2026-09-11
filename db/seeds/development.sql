@@ -1,70 +1,35 @@
 -- Apply with:
--- docker compose exec -T postgres psql -U app -d appdb < backend/internal/db/seeds/development.sql
+-- docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U app -d appdb < db/seeds/development.sql
 INSERT INTO
-    sellers (name, website_url, country_code)
+    seller (name, website_url)
 VALUES
-    ('ALDI Nord', 'https://www.aldi-nord.de', 'DE'),
-    ('ALDI SÜD', 'https://www.aldi-sued.de', 'DE'),
-    ('Amazon.de', 'https://www.amazon.de', 'DE'),
-    ('dm-drogerie markt', 'https://www.dm.de', 'DE'),
-    ('EDEKA', 'https://www.edeka.de', 'DE'),
-    ('Kaufland', 'https://www.kaufland.de', 'DE'),
-    ('Lidl', 'https://www.lidl.de', 'DE'),
-    ('MediaMarkt', 'https://www.mediamarkt.de', 'DE'),
-    ('REWE', 'https://www.rewe.de', 'DE'),
-    ('ROSSMANN', 'https://www.rossmann.de', 'DE') ON CONFLICT (lower(name)) DO NOTHING;
+    ('ALDI Nord', 'https://www.aldi-nord.de'),
+    ('ALDI SÜD', 'https://www.aldi-sued.de'),
+    ('Amazon.de', 'https://www.amazon.de'),
+    ('dm-drogerie markt', 'https://www.dm.de'),
+    ('EDEKA', 'https://www.edeka.de'),
+    ('Kaufland', 'https://www.kaufland.de'),
+    ('Lidl', 'https://www.lidl.de'),
+    ('MediaMarkt', 'https://www.mediamarkt.de'),
+    ('REWE', 'https://www.rewe.de'),
+    ('ROSSMANN', 'https://www.rossmann.de') ON CONFLICT (lower(name)) DO NOTHING;
 
 INSERT INTO
-    categories (slug)
+    category (name_de, name_en)
 VALUES
-    ('beverages'),
-    ('cleaning'),
-    ('clothing'),
-    ('cosmetics'),
-    ('electronics'),
-    ('food'),
-    ('household'),
-    ('personal-care'),
-    ('pet-care'),
-    ('supplements') ON CONFLICT (lower(slug)) DO NOTHING;
+    ('Getränke', 'beverages'),
+    ('Reinigung', 'cleaning'),
+    ('Bekleidung', 'clothing'),
+    ('Kosmetik', 'cosmetics'),
+    ('Elektronik', 'electronics'),
+    ('Lebensmittel', 'food'),
+    ('Haushalt', 'household'),
+    ('Körperpflege', 'personal-care'),
+    ('Tierbedarf', 'pet-care'),
+    ('Nahrungsergänzung', 'supplements') ON CONFLICT (lower(name_de)) DO NOTHING;
 
 INSERT INTO
-    category_translations (category_id, locale, name)
-SELECT
-    category.id,
-    translation.locale,
-    translation.name
-FROM
-    (
-        VALUES
-            ('beverages', 'de', 'Getränke'),
-            ('beverages', 'en', 'Beverages'),
-            ('cleaning', 'de', 'Reinigung'),
-            ('cleaning', 'en', 'Cleaning'),
-            ('clothing', 'de', 'Bekleidung'),
-            ('clothing', 'en', 'Clothing'),
-            ('cosmetics', 'de', 'Kosmetik'),
-            ('cosmetics', 'en', 'Cosmetics'),
-            ('electronics', 'de', 'Elektronik'),
-            ('electronics', 'en', 'Electronics'),
-            ('food', 'de', 'Lebensmittel'),
-            ('food', 'en', 'Food'),
-            ('household', 'de', 'Haushalt'),
-            ('household', 'en', 'Household'),
-            ('personal-care', 'de', 'Körperpflege'),
-            ('personal-care', 'en', 'Personal care'),
-            ('pet-care', 'de', 'Tierbedarf'),
-            ('pet-care', 'en', 'Pet care'),
-            ('supplements', 'de', 'Nahrungsergänzung'),
-            ('supplements', 'en', 'Supplements')
-    ) AS translation (slug, locale, name)
-    JOIN categories AS category ON category.slug = translation.slug ON CONFLICT (category_id, locale) DO
-UPDATE
-SET
-    name = EXCLUDED.name;
-
-INSERT INTO
-    brands (name)
+    brand (name)
 VALUES
     ('Acer'),
     ('Adidas'),
@@ -204,25 +169,23 @@ VALUES
 DO $$
 BEGIN
    FOR counter IN 1..1000 LOOP
-      INSERT INTO deterioration_reports (
+      INSERT INTO report (
           seller_id,
           brand_id,
           category_id,
           submitted_by_user_id,
           product_name,
           description,
-          observed_at,
-          status
+          observed_at
       )
       VALUES (
           -999,
           -999,
           -999,
-          1,
+          -999,
           'p' || counter,
           'd' || counter,
-          '2024-05-15',
-          'pending'
+          '2024-05-15'
       );
    END LOOP;
 END;

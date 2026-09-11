@@ -1,10 +1,9 @@
-package service
+package user
 
 import (
 	"context"
 	"errors"
 	"testing"
-	"verschlechtert/backend/internal/domain"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -13,11 +12,15 @@ type mockUserRepository struct {
 	upsertError error
 }
 
-func (m *mockUserRepository) Save(ctx context.Context, user *domain.User) error {
+func (m *mockUserRepository) Save(ctx context.Context, user *User) (*User, error) {
 	if m.upsertError != nil {
-		return m.upsertError
+		return nil, m.upsertError
 	}
-	return nil
+	return user, nil
+}
+
+func (m *mockUserRepository) Deactivate(ctx context.Context, userID int64) error {
+	return m.upsertError
 }
 
 func TestUserService_Upsert_Success(t *testing.T) {
@@ -66,7 +69,7 @@ func TestUserService_UpdateLocale_Success(t *testing.T) {
 	service := NewUserService(mockRepo)
 
 	// when
-	user, _ := domain.NewUser("f", "d", "p", "e", "")
+	user, _ := NewUser("f", "d", "p", "e", "")
 	err := service.UpdateLocale(t.Context(), user, "en")
 
 	//then
@@ -80,7 +83,7 @@ func TestUserService_UpdateLocale_Error(t *testing.T) {
 	service := NewUserService(mockRepo)
 
 	// when
-	user, _ := domain.NewUser("f", "d", "p", "e", "")
+	user, _ := NewUser("f", "d", "p", "e", "")
 	err := service.UpdateLocale(t.Context(), user, "en")
 
 	//then
@@ -93,7 +96,7 @@ func TestUserService_Deactivate_Success(t *testing.T) {
 	service := NewUserService(mockRepo)
 
 	// when
-	user, _ := domain.NewUser("f", "d", "p", "e", "")
+	user, _ := NewUser("f", "d", "p", "e", "")
 	err := service.Deactivate(t.Context(), user)
 
 	//then
@@ -107,7 +110,7 @@ func TestUserService_Deactivate_Error(t *testing.T) {
 	service := NewUserService(mockRepo)
 
 	// when
-	user, _ := domain.NewUser("f", "d", "p", "e", "")
+	user, _ := NewUser("f", "d", "p", "e", "")
 	err := service.Deactivate(t.Context(), user)
 
 	//then
