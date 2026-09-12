@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -19,12 +20,27 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	authmw "verschlechtert/backend/internal/auth"
 	"verschlechtert/backend/internal/config"
 	"verschlechtert/backend/internal/db"
 	"verschlechtert/backend/internal/httpmw"
+	"verschlechtert/backend/internal/report"
+	"verschlechtert/backend/internal/user"
 )
+
+// NewPool creates a Postgres connection pool from a DATABASE_URL connection string.
+func createPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("creating pgx pool: %w", err)
+	}
+	if err := pool.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("pinging database: %w", err)
+	}
+	return pool, nil
+}
 
 func main() {
 	ctx := context.Background()
@@ -41,15 +57,11 @@ func main() {
 
 	databaseURL := cfg.DatabaseURL
 
-	pool, err := db.NewPool(ctx, databaseURL)
+	pool, err := createPool(ctx, databaseURL)
 	if err != nil {
 		log.Fatalf("connecting to database: %v", err)
 	}
 	defer pool.Close()
-
-	if err := db.ApplyMigrations(ctx, pool); err != nil {
-		log.Fatalf("applying database migrations: %v", err)
-	}
 
 	firebaseApp, err := firebase.NewApp(ctx, nil)
 	if err != nil {
@@ -82,6 +94,14 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
+	userRepo := user.NewUserRepository(pool)
+	userService := user.NewUserService(userRepo)
+	userHandler := user.NewUserHandler(userService, authmw.UserFromContext)
+
+	reportRepo := report.NewReportRepository(pool)
+	reportService := report.NewReportService(reportRepo)
+	reportHandler := report.NewReportHandler(reportService, userService, authmw.UserFromContext)
+
 	r.Group(func(r chi.Router) {
 		r.Use(authmw.Middleware(authClient))
 		getUser := func(r *http.Request) (db.User, bool, error) {
@@ -107,35 +127,7 @@ func main() {
 			return user, ok, err
 		}
 
-		r.Get("/api/reports", func(w http.ResponseWriter, r *http.Request) {
-			user, ok, err := getCurrentUser(r)
-			if !ok {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			if err != nil {
-				http.Error(w, "could not load user", http.StatusInternalServerError)
-				return
-			}
-			limit := 24
-			if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
-				if parsed, err := strconv.Atoi(rawLimit); err == nil && parsed > 0 && parsed <= 100 {
-					limit = parsed
-				}
-			}
-			offset := 0
-			if rawOffset := r.URL.Query().Get("offset"); rawOffset != "" {
-				if parsed, err := strconv.Atoi(rawOffset); err == nil && parsed >= 0 {
-					offset = parsed
-				}
-			}
-			reports, hasMore, err := db.ListLatestReports(r.Context(), pool, r.URL.Query().Get("q"), limit, offset, requestLocale(r), user.ID)
-			if err != nil {
-				http.Error(w, "could not load reports", http.StatusInternalServerError)
-				return
-			}
-			writeJSON(w, map[string]any{"reports": reports, "hasMore": hasMore})
-		})
+		r.Get("/api/reports", reportHandler.ListActive)
 
 		r.Get("/api/reports/{id}", func(w http.ResponseWriter, r *http.Request) {
 			user, ok, err := getCurrentUser(r)
@@ -261,19 +253,7 @@ func main() {
 			writeJSON(w, options)
 		})
 
-		r.Get("/api/me", func(w http.ResponseWriter, r *http.Request) {
-			user, ok, err := getUser(r)
-			if !ok {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			if err != nil {
-				http.Error(w, "could not load user", http.StatusInternalServerError)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(user)
-		})
+		r.Get("/api/me", userHandler.GetMe)
 
 		r.Patch("/api/me", func(w http.ResponseWriter, r *http.Request) {
 			_, ok, err := getUser(r)

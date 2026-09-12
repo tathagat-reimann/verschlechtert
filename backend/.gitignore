@@ -1,0 +1,32 @@
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary and coverage output
+*.test
+*.out
+coverage.html
+
+# Go build artifacts
+/bin/
+
+# Dependency directories
+vendor/
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store

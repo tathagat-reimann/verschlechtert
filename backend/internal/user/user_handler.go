@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	// authmw "verschlechtert/backend/internal/auth"
 	"firebase.google.com/go/v4/auth"
 )
 
@@ -16,17 +17,17 @@ type IUserService interface {
 	UpdateLocale(ctx context.Context, user *User, locale string) error
 }
 
-type IAuthMiddleware interface {
-	UserFromContext(ctx context.Context) (*auth.Token, bool)
-}
-
 type UserHandler struct {
-	userService IUserService
-	authmw      IAuthMiddleware
+	userService     IUserService
+	userFromContext func(ctx context.Context) (*auth.Token, bool)
 }
 
-func NewUserHandler(userService IUserService, authmw IAuthMiddleware) *UserHandler {
-	return &UserHandler{userService: userService, authmw: authmw}
+// func NewUserHandler(userService IUserService) *UserHandler {
+// 	return &UserHandler{userService: userService}
+// }
+
+func NewUserHandler(userService IUserService, UserFromContext func(ctx context.Context) (*auth.Token, bool)) *UserHandler {
+	return &UserHandler{userService: userService, userFromContext: UserFromContext}
 }
 
 type userResponse struct {
@@ -69,7 +70,7 @@ func (h *UserHandler) UpdateLocale(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) currentUser(r *http.Request) (*User, error) {
-	firebaseUser, ok := h.authmw.UserFromContext(r.Context())
+	firebaseUser, ok := h.userFromContext(r.Context())
 	if !ok {
 		return nil, errUnauthorized
 	}

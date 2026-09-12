@@ -21,13 +21,18 @@ func (u *userServiceMock) UpdateLocale(ctx context.Context, user *User, locale s
 	return nil
 }
 
-type authmwMock struct {
-	firebaseUser *auth.Token
-	ok           bool
+var authorizedUser = &auth.Token{
+	UID: "test-uid",
+	Claims: map[string]interface{}{
+		"name":    "Test User",
+		"picture": "http://example.com/photo.jpg",
+		"email":   "test@example.com",
+	},
 }
+var userOk = true
 
-func (a *authmwMock) UserFromContext(ctx context.Context) (*auth.Token, bool) {
-	return a.firebaseUser, a.ok
+var userFromContextMock = func(ctx context.Context) (*auth.Token, bool) {
+	return authorizedUser, userOk
 }
 
 func TestGetMe(t *testing.T) {
@@ -37,21 +42,34 @@ func TestGetMe(t *testing.T) {
 			active: true,
 		},
 	}
-	authmwMock := &authmwMock{
-		firebaseUser: &auth.Token{
-			UID: "test-uid",
-			Claims: map[string]interface{}{
-				"name":    "Test User",
-				"picture": "http://example.com/photo.jpg",
-				"email":   "test@example.com",
-			},
-		},
-		ok: true,
-	}
-	handler := NewUserHandler(userServiceMock, authmwMock)
+	// authmwMock := &authmwMock{
+	// 	firebaseUser: &auth.Token{
+	// 		UID: "test-uid",
+	// 		Claims: map[string]interface{}{
+	// 			"name":    "Test User",
+	// 			"picture": "http://example.com/photo.jpg",
+	// 			"email":   "test@example.com",
+	// 		},
+	// 	},
+	// 	ok: true,
+	// }
+	handler := NewUserHandler(userServiceMock, userFromContextMock)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/me", nil)
+
+	// set test context in r with key "firebaseUser" and value firebaseUser
+	// firebaseUser :=
+	// 	&auth.Token{
+	// 		UID: "test-uid",
+	// 		Claims: map[string]interface{}{
+	// 			"name":    "Test User",
+	// 			"picture": "http://example.com/photo.jpg",
+	// 			"email":   "test@example.com",
+	// 		},
+	// 	}
+	// ctx := context.WithValue(r.Context(), "firebaseUser", firebaseUser)
+	// r = r.WithContext(ctx)
 
 	// when
 	handler.GetMe(w, r)
@@ -64,13 +82,15 @@ func TestGetMe(t *testing.T) {
 
 func TestGetMe_Unauthorized(t *testing.T) {
 	// given
-	authmwMock := &authmwMock{
-		ok: false,
-	}
-	handler := NewUserHandler(nil, authmwMock)
+	// authmwMock := &authmwMock{
+	// 	ok: false,
+	// }
+	handler := NewUserHandler(nil, userFromContextMock)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/me", nil)
+
+	userOk = false
 
 	// when
 	handler.GetMe(w, r)
@@ -88,22 +108,37 @@ func TestUpdateLocale(t *testing.T) {
 			active: true,
 		},
 	}
-	authmwMock := &authmwMock{
-		firebaseUser: &auth.Token{
-			UID: "test-uid",
-			Claims: map[string]interface{}{
-				"name":    "Test User",
-				"picture": "http://example.com/photo.jpg",
-				"email":   "test@example.com",
-			},
-		},
-		ok: true,
-	}
-	handler := NewUserHandler(userServiceMock, authmwMock)
+	// authmwMock := &authmwMock{
+	// 	firebaseUser: &auth.Token{
+	// 		UID: "test-uid",
+	// 		Claims: map[string]interface{}{
+	// 			"name":    "Test User",
+	// 			"picture": "http://example.com/photo.jpg",
+	// 			"email":   "test@example.com",
+	// 		},
+	// 	},
+	// 	ok: true,
+	// }
+	handler := NewUserHandler(userServiceMock, userFromContextMock)
 
 	w := httptest.NewRecorder()
 	body := strings.NewReader(`{"locale": "en"}`)
 	r := httptest.NewRequest("PATCH", "/me/locale", body)
+
+	userOk = true
+
+	// set test context in r with key "firebaseUser" and value firebaseUser
+	// firebaseUser :=
+	// 	&auth.Token{
+	// 		UID: "test-uid",
+	// 		Claims: map[string]interface{}{
+	// 			"name":    "Test User",
+	// 			"picture": "http://example.com/photo.jpg",
+	// 			"email":   "test@example.com",
+	// 		},
+	// 	}
+	// ctx := context.WithValue(r.Context(), "firebaseUser", firebaseUser)
+	// r = r.WithContext(ctx)
 
 	// when
 	handler.UpdateLocale(w, r)

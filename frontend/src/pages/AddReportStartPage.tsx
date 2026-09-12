@@ -104,7 +104,7 @@ export function AddReportStartPage() {
                 <CardActionArea onClick={() => navigate(`/reports/${report.id}`)}>
                   <CardContent>
                     <Stack spacing={0.5}>
-                      <Typography variant="h6">{report.product}</Typography>
+                      <Typography variant="h6">{report.productName}</Typography>
                       <Typography color="text.secondary">{report.brand}</Typography>
                       <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
                         <Chip label={report.category} size="small" />

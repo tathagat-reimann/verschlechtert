@@ -25,7 +25,7 @@ export type Report = {
   observedAt?: string;
   status: string;
   createdAt: string;
-  product: string;
+  productName: string;
   brand: string;
   category: string;
   seller: string;

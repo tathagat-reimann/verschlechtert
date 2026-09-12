@@ -167,7 +167,7 @@ export function ProductHomePage() {
                 >
                   <CardContent>
                     <Stack spacing={1.5}>
-                      <Typography variant="h6">{report.product}</Typography>
+                      <Typography variant="h6">{report.productName}</Typography>
                       <Typography color="text.secondary">
                         {report.brand}
                       </Typography>

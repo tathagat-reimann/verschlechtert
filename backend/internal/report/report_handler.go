@@ -18,6 +18,7 @@ import (
 )
 
 type IReportService interface {
+	Create(ctx context.Context, productName, description string, category *Category, brand *Brand, seller *Seller, productURL string, createdByUserID int64, images []ReportImage) (int64, error)
 	GetActive(ctx context.Context, reportID int64) (*Report, error)
 	GetActiveForUser(ctx context.Context, reportID, userID int64) (*Report, error)
 	ListActive(ctx context.Context, limit, offset int) ([]*Report, error)
@@ -33,13 +34,13 @@ type IAuthMiddleware interface {
 }
 
 type ReportHandler struct {
-	reportService IReportService
-	userService   user.IUserService
-	authmw        IAuthMiddleware
+	reportService   IReportService
+	userService     user.IUserService
+	userFromContext func(ctx context.Context) (*auth.Token, bool)
 }
 
-func NewReportHandler(reportService IReportService, userService user.IUserService, authmw IAuthMiddleware) *ReportHandler {
-	return &ReportHandler{reportService: reportService, userService: userService, authmw: authmw}
+func NewReportHandler(reportService IReportService, userService user.IUserService, UserFromContext func(ctx context.Context) (*auth.Token, bool)) *ReportHandler {
+	return &ReportHandler{reportService: reportService, userService: userService, userFromContext: UserFromContext}
 }
 
 type reportResponse struct {
@@ -113,6 +114,61 @@ func (h *ReportHandler) GetActive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, mapReport(report, userID))
+}
+
+func (h *ReportHandler) Create(w http.ResponseWriter, r *http.Request) {
+	userID, err := h.currentUserID(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var request struct {
+		BrandID     int64  `json:"brandId"`
+		CategoryID  int64  `json:"categoryId"`
+		SellerID    int64  `json:"sellerId"`
+		ProductName string `json:"productName"`
+		Description string `json:"description"`
+		ProductURL  string `json:"productUrl"`
+		Images      []struct {
+			StoragePath string `json:"storagePath"`
+			ImageURL    string `json:"imageUrl"`
+		} `json:"images"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "invalid report", http.StatusBadRequest)
+		return
+	}
+	if request.BrandID <= 0 || request.CategoryID <= 0 || request.SellerID <= 0 || strings.TrimSpace(request.ProductName) == "" || strings.TrimSpace(request.Description) == "" {
+		http.Error(w, "invalid report", http.StatusBadRequest)
+		return
+	}
+
+	category := &Category{id: request.CategoryID}
+	brand := &Brand{id: request.BrandID}
+	seller := &Seller{id: request.SellerID}
+	images := make([]ReportImage, 0, len(request.Images))
+	for _, image := range request.Images {
+		if strings.TrimSpace(image.StoragePath) == "" || strings.TrimSpace(image.ImageURL) == "" {
+			http.Error(w, "invalid report image", http.StatusBadRequest)
+			return
+		}
+		reportImage, err := NewReportImage(image.StoragePath, image.ImageURL)
+		if err != nil {
+			http.Error(w, "invalid report image", http.StatusBadRequest)
+			return
+		}
+		images = append(images, *reportImage)
+	}
+
+	reportID, err := h.reportService.Create(r.Context(), request.ProductName, request.Description, category, brand, seller, request.ProductURL, userID, images)
+	if err != nil {
+		http.Error(w, "could not create report", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, map[string]any{"id": reportID})
 }
 
 func (h *ReportHandler) AddComment(w http.ResponseWriter, r *http.Request) {
@@ -211,7 +267,7 @@ func (h *ReportHandler) AddAlternative(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ReportHandler) currentUserID(r *http.Request) (int64, error) {
-	firebaseUser, ok := h.authmw.UserFromContext(r.Context())
+	firebaseUser, ok := h.userFromContext(r.Context())
 	if !ok {
 		return 0, errUnauthorized
 	}
