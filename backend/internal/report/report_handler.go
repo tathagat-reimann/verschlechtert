@@ -39,6 +39,11 @@ type ReportHandler struct {
 	userFromContext func(ctx context.Context) (*auth.Token, bool)
 }
 
+func (h *ReportHandler) RegisterRoutes(r chi.Router) {
+	r.Get("/reports", h.ListActive)
+	r.Get("/reports/{reportID}", h.GetActive)
+}
+
 func NewReportHandler(reportService IReportService, userService user.IUserService, UserFromContext func(ctx context.Context) (*auth.Token, bool)) *ReportHandler {
 	return &ReportHandler{reportService: reportService, userService: userService, userFromContext: UserFromContext}
 }

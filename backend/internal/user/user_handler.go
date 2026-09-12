@@ -10,6 +10,7 @@ import (
 
 	// authmw "verschlechtert/backend/internal/auth"
 	"firebase.google.com/go/v4/auth"
+	"github.com/go-chi/chi/v5"
 )
 
 type IUserService interface {
@@ -28,6 +29,11 @@ type UserHandler struct {
 
 func NewUserHandler(userService IUserService, UserFromContext func(ctx context.Context) (*auth.Token, bool)) *UserHandler {
 	return &UserHandler{userService: userService, userFromContext: UserFromContext}
+}
+
+func (h *UserHandler) RegisterRoutes(r chi.Router) {
+	r.Get("/me", h.GetMe)
+	r.Patch("/me/locale", h.UpdateLocale)
 }
 
 type userResponse struct {
