@@ -3,7 +3,7 @@ package router
 import (
 	"net/http"
 	authmw "verschlechtert/backend/internal/auth"
-	"verschlechtert/backend/internal/httpmw"
+	httpmw "verschlechtert/backend/internal/httmw"
 	"verschlechtert/backend/internal/report"
 	"verschlechtert/backend/internal/user"
 
@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func HealthCheck(w http.ResponseWriter, r *http.Request) {
@@ -39,6 +40,7 @@ func (rt *Router) Setup() http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
+	r.Use(httpmw.PrometheusMetrics)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   rt.allowedOrigins,
@@ -53,6 +55,7 @@ func (rt *Router) Setup() http.Handler {
 
 	// Public routes (no auth required)
 	r.Get("/health", HealthCheck)
+	r.Handle("/metrics", promhttp.Handler())
 
 	// Protected API routes (require Firebase auth)
 	r.Route("/api", func(r chi.Router) {

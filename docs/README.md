@@ -107,6 +107,12 @@ Outsources to firebase
 | Staging/test | test | TBD | TBD |
 | Production | release | TBD | TBD |
 
-## 8. Helpful commands
+## 8. Middlewares being used
+Auth
+Limit
+prometheus - http://localhost:8080/metrics
+
+## 9. Helpful commands
 
 Testing with report: go test ./... -tags=integration -coverprofile=cover.out && go tool cover -html cover.out
+starting db for testing: docker compose up -d postgres
