@@ -108,9 +108,12 @@ Outsources to firebase
 | Production | release | TBD | TBD |
 
 ## 8. Middlewares being used
-Auth
-Limit
-prometheus - http://localhost:8080/metrics
+### 1. Auth
+### 2. Limit
+### 3. prometheus - http://localhost:8080/metrics
+### 4. opentelemetry - see results with jaeger - started with docker compose automatically - http://localhost:16686
+
+    View traces at http://localhost:16686
 
 ## 9. Helpful commands
 

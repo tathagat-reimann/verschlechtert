@@ -14,6 +14,9 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"firebase.google.com/go/v4/auth"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type IReportService interface {
@@ -89,6 +92,13 @@ type alternativeResponse struct {
 }
 
 func (h *ReportHandler) ListActive(w http.ResponseWriter, r *http.Request) {
+	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.ListActive",
+		trace.WithAttributes(
+			attribute.String("http.route", "/reports"),
+		),
+	)
+	defer span.End()
+
 	userID, err := h.currentUserID(r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -96,8 +106,9 @@ func (h *ReportHandler) ListActive(w http.ResponseWriter, r *http.Request) {
 	}
 	limit, offset := pagination(r)
 	locale := h.getLocaleFromClaims(r)
-	reports, err := h.reportService.ListActive(r.Context(), locale, limit, offset)
+	reports, err := h.reportService.ListActive(ctx, locale, limit, offset)
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, "could not load reports", http.StatusInternalServerError)
 		return
 	}
@@ -105,6 +116,13 @@ func (h *ReportHandler) ListActive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ReportHandler) GetActive(w http.ResponseWriter, r *http.Request) {
+	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.GetActive",
+		trace.WithAttributes(
+			attribute.String("http.route", "/reports/{reportID}"),
+		),
+	)
+	defer span.End()
+
 	reportID, ok := reportID(w, r)
 	if !ok {
 		return
@@ -115,8 +133,9 @@ func (h *ReportHandler) GetActive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	locale := h.getLocaleFromClaims(r)
-	report, err := h.reportService.GetActive(r.Context(), locale, reportID)
+	report, err := h.reportService.GetActive(ctx, locale, reportID)
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, "report not found", http.StatusNotFound)
 		return
 	}
@@ -124,6 +143,9 @@ func (h *ReportHandler) GetActive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ReportHandler) Create(w http.ResponseWriter, r *http.Request) {
+	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.Create")
+	defer span.End()
+
 	userID, err := h.currentUserID(r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -168,8 +190,9 @@ func (h *ReportHandler) Create(w http.ResponseWriter, r *http.Request) {
 		images = append(images, *reportImage)
 	}
 
-	reportID, err := h.reportService.Create(r.Context(), request.ProductName, request.Description, category, brand, seller, request.ProductURL, userID, images)
+	reportID, err := h.reportService.Create(ctx, request.ProductName, request.Description, category, brand, seller, request.ProductURL, userID, images)
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, "could not create report", http.StatusInternalServerError)
 		return
 	}
@@ -179,6 +202,9 @@ func (h *ReportHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ReportHandler) AddComment(w http.ResponseWriter, r *http.Request) {
+	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.AddComment")
+	defer span.End()
+
 	reportID, ok := reportID(w, r)
 	if !ok {
 		return
@@ -195,7 +221,8 @@ func (h *ReportHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid comment", http.StatusBadRequest)
 		return
 	}
-	if err := h.reportService.AddComment(r.Context(), reportID, userID, request.Body); err != nil {
+	if err := h.reportService.AddComment(ctx, reportID, userID, request.Body); err != nil {
+		span.RecordError(err)
 		http.Error(w, "could not add comment", http.StatusInternalServerError)
 		return
 	}
@@ -204,6 +231,9 @@ func (h *ReportHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ReportHandler) ToggleLike(w http.ResponseWriter, r *http.Request) {
+	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.ToggleLike")
+	defer span.End()
+
 	reportID, ok := reportID(w, r)
 	if !ok {
 		return
@@ -214,8 +244,9 @@ func (h *ReportHandler) ToggleLike(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	locale := h.getLocaleFromClaims(r)
-	report, err := h.reportService.GetActive(r.Context(), locale, reportID)
+	report, err := h.reportService.GetActive(ctx, locale, reportID)
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, "report not found", http.StatusNotFound)
 		return
 	}

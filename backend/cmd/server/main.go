@@ -18,6 +18,7 @@ import (
 	"verschlechtert/backend/internal/config"
 	"verschlechtert/backend/internal/report"
 	"verschlechtert/backend/internal/router"
+	"verschlechtert/backend/internal/tracing"
 	"verschlechtert/backend/internal/user"
 )
 
@@ -45,6 +46,11 @@ func main() {
 		logLevel = slog.LevelInfo
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})))
+
+	// Initialize OpenTelemetry Jaeger exporter
+	// Uses OTEL_EXPORTER_OTLP_ENDPOINT env var (default: 127.0.0.1:4318 for HTTP)
+	shutdownTracer := tracing.InitJaegerExporter(ctx)
+	defer shutdownTracer(ctx)
 
 	databaseURL := cfg.DatabaseURL
 
@@ -403,6 +409,10 @@ func main() {
 
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			log.Printf("error during shutdown: %v", err)
+		}
+
+		if err := shutdownTracer(ctx); err != nil {
+			log.Printf("error shutting down tracer: %v", err)
 		}
 	}
 }

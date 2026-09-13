@@ -11,6 +11,9 @@ import (
 	// authmw "verschlechtert/backend/internal/auth"
 	"firebase.google.com/go/v4/auth"
 	"github.com/go-chi/chi/v5"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type IUserService interface {
@@ -43,8 +46,16 @@ type userResponse struct {
 }
 
 func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
-	user, err := h.currentUser(r)
+	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "user.handler.GetMe",
+		trace.WithAttributes(
+			attribute.String("http.route", "/me"),
+		),
+	)
+	defer span.End()
+
+	user, err := h.currentUser(r.WithContext(ctx))
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, "could not load user", http.StatusInternalServerError)
 		return
 	}
@@ -52,8 +63,16 @@ func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) UpdateLocale(w http.ResponseWriter, r *http.Request) {
-	user, err := h.currentUser(r)
+	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "user.handler.UpdateLocale",
+		trace.WithAttributes(
+			attribute.String("http.route", "/me/locale"),
+		),
+	)
+	defer span.End()
+
+	user, err := h.currentUser(r.WithContext(ctx))
 	if err != nil {
+		span.RecordError(err)
 		http.Error(w, "could not load user", http.StatusInternalServerError)
 		return
 	}
@@ -65,7 +84,8 @@ func (h *UserHandler) UpdateLocale(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid locale", http.StatusBadRequest)
 		return
 	}
-	if err := h.userService.UpdateLocale(r.Context(), h.authClient, user, request.Locale); err != nil {
+	if err := h.userService.UpdateLocale(ctx, h.authClient, user, request.Locale); err != nil {
+		span.RecordError(err)
 		http.Error(w, "could not update user locale", http.StatusInternalServerError)
 		return
 	}

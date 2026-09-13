@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type ReportRepository struct {
@@ -24,32 +27,62 @@ func (repo *ReportRepository) categoryNameCol(locale string) string {
 }
 
 func (repo *ReportRepository) GetActive(ctx context.Context, locale string, reportID int64) (*Report, error) {
+	ctx, span := otel.Tracer("verschlechtert/backend").Start(ctx, "report.repo.GetActive",
+		trace.WithAttributes(
+			attribute.String("report.locale", locale),
+			attribute.Int64("report.id", reportID),
+		),
+	)
+	defer span.End()
+
 	report, err := repo.get(ctx, locale, `WHERE r.id = $1 AND r.active = true`, reportID)
 	if err != nil {
+		span.RecordError(err)
 		return nil, fmt.Errorf("getting active report: %w", err)
 	}
 	if err := repo.loadDetails(ctx, report); err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 	return report, nil
 }
 
 func (repo *ReportRepository) GetActiveForUser(ctx context.Context, locale string, reportID, userID int64) (*Report, error) {
+	ctx, span := otel.Tracer("verschlechtert/backend").Start(ctx, "report.repo.GetActiveForUser",
+		trace.WithAttributes(
+			attribute.String("report.locale", locale),
+			attribute.Int64("report.id", reportID),
+			attribute.Int64("report.user_id", userID),
+		),
+	)
+	defer span.End()
+
 	report, err := repo.get(ctx, locale, `
 		WHERE r.id = $1
 		  AND r.submitted_by_user_id = $2
 		  AND r.active = true
 	`, reportID, userID)
 	if err != nil {
+		span.RecordError(err)
 		return nil, fmt.Errorf("getting active user report: %w", err)
 	}
 	if err := repo.loadDetails(ctx, report); err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 	return report, nil
 }
 
 func (repo *ReportRepository) ListActive(ctx context.Context, locale string, limit, offset int) ([]*Report, error) {
+	ctx, span := otel.Tracer("verschlechtert/backend").Start(ctx, "report.repo.ListActive",
+		trace.WithAttributes(
+			attribute.String("report.locale", locale),
+			attribute.Int("report.limit", limit),
+			attribute.Int("report.offset", offset),
+		),
+	)
+	defer span.End()
+
 	return repo.list(ctx, locale, `
 		WHERE r.active = true
 		ORDER BY r.created_at DESC, r.id DESC
@@ -67,6 +100,14 @@ func (repo *ReportRepository) ListActiveByUser(ctx context.Context, locale strin
 }
 
 func (repo *ReportRepository) get(ctx context.Context, locale, suffix string, args ...any) (*Report, error) {
+	ctx, span := otel.Tracer("verschlechtert/backend").Start(ctx, "report.repo.query.get",
+		trace.WithAttributes(
+			attribute.String("report.locale", locale),
+			attribute.String("report.query_scope", "single_report"),
+		),
+	)
+	defer span.End()
+
 	var (
 		reportID, sellerID, brandID, categoryID, createdByUserID int64
 		sellerName, brandName, categoryName                      string
@@ -88,6 +129,7 @@ func (repo *ReportRepository) get(ctx context.Context, locale, suffix string, ar
 		&productURL, &description, &createdAt,
 	)
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
@@ -105,6 +147,14 @@ func (repo *ReportRepository) get(ctx context.Context, locale, suffix string, ar
 }
 
 func (repo *ReportRepository) list(ctx context.Context, locale, suffix string, args ...any) ([]*Report, error) {
+	ctx, span := otel.Tracer("verschlechtert/backend").Start(ctx, "report.repo.query.list",
+		trace.WithAttributes(
+			attribute.String("report.locale", locale),
+			attribute.String("report.query_scope", "report_list"),
+		),
+	)
+	defer span.End()
+
 	rows, err := repo.pool.Query(ctx, `
 		SELECT r.id, r.seller_id, s.name, r.brand_id, b.name,
 		       r.category_id, `+repo.categoryNameCol(locale)+`, r.submitted_by_user_id,
@@ -115,6 +165,7 @@ func (repo *ReportRepository) list(ctx context.Context, locale, suffix string, a
 		JOIN category c ON c.id = r.category_id
 	`+suffix, args...)
 	if err != nil {
+		span.RecordError(err)
 		return nil, fmt.Errorf("listing reports: %w", err)
 	}
 	defer rows.Close()

@@ -23,16 +23,28 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      jaeger:
+        condition: service_started
     environment:
       DATABASE_URL: postgres://app:app@postgres:5432/appdb?sslmode=disable
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase_service_account
       PORT: "8080"
       APP_ENV: ${APP_ENV:-development}
       CORS_ALLOWED_ORIGIN: http://localhost:5173
+      OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4318
     secrets:
       - firebase_service_account
     ports:
       - "8080:8080"
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    restart: unless-stopped
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "16686:16686"
+      - "14268:14268"
 
   frontend:
     build:
