@@ -34,28 +34,28 @@ func (m *mockReportRepository) Create(ctx context.Context, report *Report) (int6
 	return 1, nil
 }
 
-func (m *mockReportRepository) GetActive(ctx context.Context, reportID int64) (*Report, error) {
+func (m *mockReportRepository) GetActive(ctx context.Context, locale string, reportID int64) (*Report, error) {
 	if m.getError != nil {
 		return nil, m.getError
 	}
 	return m.activeReport, nil
 }
 
-func (m *mockReportRepository) GetActiveForUser(ctx context.Context, reportID, userID int64) (*Report, error) {
+func (m *mockReportRepository) GetActiveForUser(ctx context.Context, locale string, reportID, userID int64) (*Report, error) {
 	if m.getError != nil {
 		return nil, m.getError
 	}
 	return m.activeReport, nil
 }
 
-func (m *mockReportRepository) ListActive(ctx context.Context, limit, offset int) ([]*Report, error) {
+func (m *mockReportRepository) ListActive(ctx context.Context, locale string, limit, offset int) ([]*Report, error) {
 	if m.listError != nil {
 		return nil, m.listError
 	}
 	return m.activeReports, nil
 }
 
-func (m *mockReportRepository) ListActiveByUser(ctx context.Context, userID int64, limit, offset int) ([]*Report, error) {
+func (m *mockReportRepository) ListActiveByUser(ctx context.Context, locale string, userID int64, limit, offset int) ([]*Report, error) {
 	if m.listError != nil {
 		return nil, m.listError
 	}
@@ -134,19 +134,19 @@ func TestReportService_GetAndList(t *testing.T) {
 	mockRepo := &mockReportRepository{activeReport: activeReport, activeReports: []*Report{activeReport}}
 	service := NewReportService(mockRepo)
 
-	got, err := service.GetActive(t.Context(), 1)
+	got, err := service.GetActive(t.Context(), "de", 1)
 	assert.NoError(t, err)
 	assert.Same(t, activeReport, got)
 
-	gotForUser, err := service.GetActiveForUser(t.Context(), 1, 10)
+	gotForUser, err := service.GetActiveForUser(t.Context(), "de", 1, 10)
 	assert.NoError(t, err)
 	assert.Same(t, activeReport, gotForUser)
 
-	listed, err := service.ListActive(t.Context(), 20, 0)
+	listed, err := service.ListActive(t.Context(), "de", 20, 0)
 	assert.NoError(t, err)
 	assert.Len(t, listed, 1)
 
-	listedByUser, err := service.ListActiveByUser(t.Context(), 10, 20, 0)
+	listedByUser, err := service.ListActiveByUser(t.Context(), "de", 10, 20, 0)
 	assert.NoError(t, err)
 	assert.Len(t, listedByUser, 1)
 }

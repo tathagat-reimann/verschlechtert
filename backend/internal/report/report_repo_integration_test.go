@@ -53,6 +53,7 @@ func TestReportRepository_CreateAndGetActive(t *testing.T) {
 	require.NotNil(t, repo)
 
 	internalUserID := int64(-999)
+	locale := "de"
 	brand := &Brand{id: -999, name: "unknown"}
 	seller := &Seller{id: -999, name: "unknown"}
 	category := &Category{id: -999, name: "unknown"}
@@ -80,7 +81,7 @@ func TestReportRepository_CreateAndGetActive(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, repo.AddAlternative(t.Context(), reportID, *alternative))
 
-	loadedReport, err := repo.GetActive(t.Context(), reportID)
+	loadedReport, err := repo.GetActive(t.Context(), locale, reportID)
 	require.NoError(t, err)
 	assert.Equal(t, reportID, loadedReport.GetID())
 	assert.Equal(t, productName, loadedReport.GetProductName())
@@ -91,7 +92,7 @@ func TestReportRepository_CreateAndGetActive(t *testing.T) {
 
 	repo.RemoveLike(t.Context(), reportID, internalUserID)
 
-	loadedReport, err = repo.GetActiveForUser(t.Context(), reportID, internalUserID)
+	loadedReport, err = repo.GetActiveForUser(t.Context(), locale, reportID, internalUserID)
 	require.NoError(t, err)
 	assert.Equal(t, reportID, loadedReport.GetID())
 	assert.Equal(t, productName, loadedReport.GetProductName())
@@ -100,11 +101,11 @@ func TestReportRepository_CreateAndGetActive(t *testing.T) {
 	assert.Equal(t, int64(0), int64(len(loadedReport.GetLikes())))
 	assert.Equal(t, int64(1), int64(len(loadedReport.GetAlternatives())))
 
-	listedReports, err := repo.ListActive(t.Context(), 20, 0)
+	listedReports, err := repo.ListActive(t.Context(), locale, 20, 0)
 	require.NoError(t, err)
 	assert.Contains(t, reportIDs(listedReports), reportID)
 
-	userReports, err := repo.ListActiveByUser(t.Context(), internalUserID, 20, 0)
+	userReports, err := repo.ListActiveByUser(t.Context(), locale, internalUserID, 20, 0)
 	require.NoError(t, err)
 	assert.Contains(t, reportIDs(userReports), reportID)
 }

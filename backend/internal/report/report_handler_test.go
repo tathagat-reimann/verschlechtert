@@ -31,19 +31,19 @@ func (m *reportServiceHandlerMock) Create(_ context.Context, _, _ string, _ *Cat
 	return m.createdID, nil
 }
 
-func (m *reportServiceHandlerMock) GetActive(_ context.Context, _ int64) (*Report, error) {
+func (m *reportServiceHandlerMock) GetActive(_ context.Context, _ string, _ int64) (*Report, error) {
 	return m.activeReport, nil
 }
 
-func (m *reportServiceHandlerMock) GetActiveForUser(_ context.Context, _ int64, _ int64) (*Report, error) {
+func (m *reportServiceHandlerMock) GetActiveForUser(_ context.Context, _ string, _ int64, _ int64) (*Report, error) {
 	return m.activeReport, nil
 }
 
-func (m *reportServiceHandlerMock) ListActive(_ context.Context, _, _ int) ([]*Report, error) {
+func (m *reportServiceHandlerMock) ListActive(_ context.Context, _ string, _, _ int) ([]*Report, error) {
 	return m.activeReports, nil
 }
 
-func (m *reportServiceHandlerMock) ListActiveByUser(_ context.Context, _ int64, _, _ int) ([]*Report, error) {
+func (m *reportServiceHandlerMock) ListActiveByUser(_ context.Context, _ string, _ int64, _, _ int) ([]*Report, error) {
 	return m.activeReports, nil
 }
 

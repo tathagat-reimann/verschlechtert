@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -19,10 +18,10 @@ import (
 
 type IReportService interface {
 	Create(ctx context.Context, productName, description string, category *Category, brand *Brand, seller *Seller, productURL string, createdByUserID int64, images []ReportImage) (int64, error)
-	GetActive(ctx context.Context, reportID int64) (*Report, error)
-	GetActiveForUser(ctx context.Context, reportID, userID int64) (*Report, error)
-	ListActive(ctx context.Context, limit, offset int) ([]*Report, error)
-	ListActiveByUser(ctx context.Context, userID int64, limit, offset int) ([]*Report, error)
+	GetActive(ctx context.Context, locale string, reportID int64) (*Report, error)
+	GetActiveForUser(ctx context.Context, locale string, reportID, userID int64) (*Report, error)
+	ListActive(ctx context.Context, locale string, limit, offset int) ([]*Report, error)
+	ListActiveByUser(ctx context.Context, locale string, userID int64, limit, offset int) ([]*Report, error)
 	AddComment(ctx context.Context, reportID, userID int64, comment string) error
 	AddLike(ctx context.Context, reportID, userID int64) error
 	RemoveLike(ctx context.Context, reportID, userID int64) error
@@ -96,7 +95,8 @@ func (h *ReportHandler) ListActive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit, offset := pagination(r)
-	reports, err := h.reportService.ListActive(r.Context(), limit, offset)
+	locale := h.getLocaleFromClaims(r)
+	reports, err := h.reportService.ListActive(r.Context(), locale, limit, offset)
 	if err != nil {
 		http.Error(w, "could not load reports", http.StatusInternalServerError)
 		return
@@ -114,7 +114,8 @@ func (h *ReportHandler) GetActive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	report, err := h.reportService.GetActive(r.Context(), reportID)
+	locale := h.getLocaleFromClaims(r)
+	report, err := h.reportService.GetActive(r.Context(), locale, reportID)
 	if err != nil {
 		http.Error(w, "report not found", http.StatusNotFound)
 		return
@@ -212,7 +213,8 @@ func (h *ReportHandler) ToggleLike(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	report, err := h.reportService.GetActive(r.Context(), reportID)
+	locale := h.getLocaleFromClaims(r)
+	report, err := h.reportService.GetActive(r.Context(), locale, reportID)
 	if err != nil {
 		http.Error(w, "report not found", http.StatusNotFound)
 		return
@@ -282,7 +284,7 @@ func (h *ReportHandler) currentUserID(r *http.Request) (int64, error) {
 		return int64(userIDClaim), nil
 	}
 	// Fall back to Upsert if claims not set (e.g., old tokens)
-	currentUser, err := h.userService.Upsert(r.Context(), h.authClient, firebaseUser.UID, reportClaimString(firebaseUser.Claims, "name"), reportClaimString(firebaseUser.Claims, "picture"), reportClaimString(firebaseUser.Claims, "email"), reportRequestLocale(r))
+	currentUser, err := h.userService.Upsert(r.Context(), h.authClient, firebaseUser.UID, reportClaimString(firebaseUser.Claims, "name"), reportClaimString(firebaseUser.Claims, "picture"), reportClaimString(firebaseUser.Claims, "email"), h.getLocaleFromClaims(r))
 	if err != nil {
 		return 0, err
 	}
@@ -290,6 +292,17 @@ func (h *ReportHandler) currentUserID(r *http.Request) (int64, error) {
 		return 0, errInactiveUser
 	}
 	return currentUser.GetID(), nil
+}
+
+func (h *ReportHandler) getLocaleFromClaims(r *http.Request) string {
+	firebaseUser, ok := h.userFromContext(r.Context())
+	if !ok {
+		return "de"
+	}
+	if localeClaim, ok := firebaseUser.Claims["locale"].(string); ok && localeClaim == "en" {
+		return localeClaim
+	}
+	return "de"
 }
 
 func mapReports(reports []*Report, userID int64) []reportResponse {
@@ -347,16 +360,6 @@ func pagination(r *http.Request) (int, int) {
 func writeJSON(w http.ResponseWriter, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(value)
-}
-
-var reportLocalePattern = regexp.MustCompile(`^[a-z]{2}(-[A-Z]{2})?$`)
-
-func reportRequestLocale(r *http.Request) string {
-	locale := r.URL.Query().Get("locale")
-	if reportLocalePattern.MatchString(locale) {
-		return locale
-	}
-	return "de"
 }
 
 func reportClaimString(claims map[string]interface{}, key string) string {

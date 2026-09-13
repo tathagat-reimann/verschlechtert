@@ -4,10 +4,10 @@ import "context"
 
 type IReportRepository interface {
 	Create(ctx context.Context, report *Report) (int64, error)
-	GetActive(ctx context.Context, reportID int64) (*Report, error)
-	GetActiveForUser(ctx context.Context, reportID, userID int64) (*Report, error)
-	ListActive(ctx context.Context, limit, offset int) ([]*Report, error)
-	ListActiveByUser(ctx context.Context, userID int64, limit, offset int) ([]*Report, error)
+	GetActive(ctx context.Context, locale string, reportID int64) (*Report, error)
+	GetActiveForUser(ctx context.Context, locale string, reportID, userID int64) (*Report, error)
+	ListActive(ctx context.Context, locale string, limit, offset int) ([]*Report, error)
+	ListActiveByUser(ctx context.Context, locale string, userID int64, limit, offset int) ([]*Report, error)
 	AddComment(ctx context.Context, reportID int64, comment ReportComment) error
 	AddLike(ctx context.Context, reportID int64, like ReportLike) error
 	RemoveLike(ctx context.Context, reportID, userID int64) error
@@ -46,24 +46,24 @@ func (s *ReportService) Create(
 	return s.reportRepo.Create(ctx, report)
 }
 
-func (s *ReportService) GetActive(ctx context.Context, reportID int64) (*Report, error) {
-	return s.reportRepo.GetActive(ctx, reportID)
+func (s *ReportService) GetActive(ctx context.Context, locale string, reportID int64) (*Report, error) {
+	return s.reportRepo.GetActive(ctx, locale, reportID)
 }
 
-func (s *ReportService) GetActiveForUser(ctx context.Context, reportID, userID int64) (*Report, error) {
-	return s.reportRepo.GetActiveForUser(ctx, reportID, userID)
+func (s *ReportService) GetActiveForUser(ctx context.Context, locale string, reportID, userID int64) (*Report, error) {
+	return s.reportRepo.GetActiveForUser(ctx, locale, reportID, userID)
 }
 
-func (s *ReportService) ListActive(ctx context.Context, limit, offset int) ([]*Report, error) {
-	return s.reportRepo.ListActive(ctx, limit, offset)
+func (s *ReportService) ListActive(ctx context.Context, locale string, limit, offset int) ([]*Report, error) {
+	return s.reportRepo.ListActive(ctx, locale, limit, offset)
 }
 
-func (s *ReportService) ListActiveByUser(ctx context.Context, userID int64, limit, offset int) ([]*Report, error) {
-	return s.reportRepo.ListActiveByUser(ctx, userID, limit, offset)
+func (s *ReportService) ListActiveByUser(ctx context.Context, locale string, userID int64, limit, offset int) ([]*Report, error) {
+	return s.reportRepo.ListActiveByUser(ctx, locale, userID, limit, offset)
 }
 
 func (s *ReportService) AddComment(ctx context.Context, reportID, userID int64, comment string) error {
-	report, err := s.reportRepo.GetActive(ctx, reportID)
+	report, err := s.reportRepo.GetActive(ctx, "de", reportID)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func (s *ReportService) AddComment(ctx context.Context, reportID, userID int64, 
 }
 
 func (s *ReportService) AddLike(ctx context.Context, reportID, userID int64) error {
-	report, err := s.reportRepo.GetActive(ctx, reportID)
+	report, err := s.reportRepo.GetActive(ctx, "de", reportID)
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func (s *ReportService) AddLike(ctx context.Context, reportID, userID int64) err
 }
 
 func (s *ReportService) RemoveLike(ctx context.Context, reportID, userID int64) error {
-	report, err := s.reportRepo.GetActive(ctx, reportID)
+	report, err := s.reportRepo.GetActive(ctx, "de", reportID)
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func (s *ReportService) AddAlternative(
 	productURL string,
 	createdByUserID int64,
 ) error {
-	report, err := s.reportRepo.GetActive(ctx, reportID)
+	report, err := s.reportRepo.GetActive(ctx, "de", reportID)
 	if err != nil {
 		return err
 	}
