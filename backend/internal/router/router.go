@@ -40,6 +40,7 @@ func (rt *Router) Setup() http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
+	r.Use(httpmw.CorrelationIDMiddleware)
 	r.Use(httpmw.OpenTelemetryTracing)
 	r.Use(httpmw.PrometheusMetrics)
 	r.Use(middleware.Recoverer)
