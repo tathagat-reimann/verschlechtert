@@ -17,7 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestStore(t *testing.T) *ReportRepository {
+const prefixProductName = "integration-product-"
+
+func setupTestStore(t *testing.T) (*ReportRepository, func(t *testing.T)) {
 	t.Helper()
 
 	t.Setenv("PORT", "8080")
@@ -38,11 +40,16 @@ func setupTestStore(t *testing.T) *ReportRepository {
 		t.Fatalf("Could not ping database: %v", err)
 	}
 
-	return NewReportRepository(pool)
+	return NewReportRepository(pool), func(t *testing.T) {
+		// delete test user if exists
+		_, _ = pool.Exec(ctx, "DELETE FROM report WHERE product_name like $1", prefixProductName+"%")
+		pool.Close()
+	}
 }
 
 func TestReportRepository_CreateAndGetActive(t *testing.T) {
-	repo := setupTestStore(t)
+	repo, teardown := setupTestStore(t)
+	defer teardown(t)
 	require.NotNil(t, repo)
 
 	internalUserID := int64(-999)
@@ -52,7 +59,7 @@ func TestReportRepository_CreateAndGetActive(t *testing.T) {
 	image, err := NewReportImage("reports/test/image.jpg", "https://example.com/image.jpg")
 	require.NoError(t, err)
 
-	productName := fmt.Sprintf("integration-product-%s", t.Name())
+	productName := fmt.Sprintf(prefixProductName+"%s", t.Name())
 	report, err := NewReport(productName, "integration description", category, brand, seller, "", internalUserID)
 	require.NoError(t, err)
 	require.NoError(t, report.AddImage(*image))

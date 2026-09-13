@@ -14,7 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setupTestStore(t *testing.T) *UserRepository {
+// constant firebaseId for test user
+const testFirebaseID = "test-firebase-id"
+
+func setupTestStore(t *testing.T) (*UserRepository, func(t *testing.T)) {
 	t.Helper()
 
 	t.Setenv("PORT", "8080")
@@ -29,27 +32,32 @@ func setupTestStore(t *testing.T) *UserRepository {
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("Could not connect to database: %v (set DATABASE_URL)", err)
-		return nil
+		return nil, nil
 	}
 	// defer pool.Close()
 
 	// Verify connection
 	if err := pool.Ping(ctx); err != nil {
 		t.Fatalf("Could not ping database: %v", err)
-		return nil
+		return nil, nil
 	}
 
-	return NewUserRepository(pool)
+	return NewUserRepository(pool), func(t *testing.T) {
+		// delete test user if exists
+		_, _ = pool.Exec(ctx, "DELETE FROM appuser WHERE firebase_uid = $1", testFirebaseID)
+		pool.Close()
+	}
 }
 
 func Test_SaveUser(t *testing.T) {
 	//given
 
-	repo := setupTestStore(t)
+	repo, teardown := setupTestStore(t)
+	defer teardown(t)
 	assert.NotNil(t, repo)
 
 	// when
-	user, _ := NewUser("f", "d", "p", "e", "")
+	user, _ := NewUser(testFirebaseID, "d", "p", "e", "")
 	persistedUser, err := repo.Save(t.Context(), user)
 
 	// then
@@ -60,11 +68,12 @@ func Test_SaveUser(t *testing.T) {
 
 func Test_DeactivateUser(t *testing.T) {
 	//given
-	repo := setupTestStore(t)
+	repo, teardown := setupTestStore(t)
+	defer teardown(t)
 	assert.NotNil(t, repo)
 
 	// when
-	user, _ := NewUser("f", "d", "p", "e", "")
+	user, _ := NewUser(testFirebaseID, "d", "p", "e", "")
 	persistedUser, err := repo.Save(t.Context(), user)
 	assert.NoError(t, err)
 	assert.NotNil(t, persistedUser)
