@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	authmw "verschlechtert/backend/internal/auth"
+
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -40,6 +42,35 @@ func CorrelationIDMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func userIDFromContext(ctx context.Context) int64 {
+	token, ok := authmw.UserFromContext(ctx)
+	if !ok || token == nil {
+		return 0
+	}
+
+	value, ok := token.Claims["userID"]
+	if !ok {
+		return 0
+	}
+
+	switch v := value.(type) {
+	case float64:
+		if v > 0 {
+			return int64(v)
+		}
+	case int64:
+		if v > 0 {
+			return v
+		}
+	case int:
+		if v > 0 {
+			return int64(v)
+		}
+	}
+
+	return 0
+}
+
 // OpenTelemetryTracing returns middleware that records request tracing information
 func OpenTelemetryTracing(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -54,6 +85,9 @@ func OpenTelemetryTracing(next http.Handler) http.Handler {
 		}
 		if id := CorrelationIDFromContext(r.Context()); id != "" {
 			attrs = append(attrs, attribute.String("correlation.id", id))
+		}
+		if userID := userIDFromContext(r.Context()); userID > 0 {
+			attrs = append(attrs, attribute.Int64("user.id", userID))
 		}
 
 		ctx, span := tracer.Start(r.Context(), r.Method+" "+r.URL.Path,
