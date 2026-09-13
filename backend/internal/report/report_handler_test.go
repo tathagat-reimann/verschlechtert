@@ -71,11 +71,11 @@ type reportUserServiceMock struct {
 	currentUser *user.User
 }
 
-func (m *reportUserServiceMock) Upsert(_ context.Context, _, _, _, _, _ string) (*user.User, error) {
+func (m *reportUserServiceMock) Upsert(_ context.Context, _ *auth.Client, _, _, _, _, _ string) (*user.User, error) {
 	return m.currentUser, nil
 }
 
-func (m *reportUserServiceMock) UpdateLocale(_ context.Context, _ *user.User, _ string) error {
+func (m *reportUserServiceMock) UpdateLocale(_ context.Context, _ *auth.Client, _ *user.User, _ string) error {
 	return nil
 }
 
@@ -103,6 +103,7 @@ func newReportHandlerForTest(service *reportServiceHandlerMock) *ReportHandler {
 		service,
 		&reportUserServiceMock{currentUser: currentUser},
 		userFromContextMock,
+		nil,
 	)
 }
 

@@ -14,21 +14,18 @@ import (
 )
 
 type IUserService interface {
-	Upsert(ctx context.Context, firebaseUID, displayName, photoURL, email, locale string) (*User, error)
-	UpdateLocale(ctx context.Context, user *User, locale string) error
+	Upsert(ctx context.Context, authClient *auth.Client, firebaseUID, displayName, photoURL, email, locale string) (*User, error)
+	UpdateLocale(ctx context.Context, authClient *auth.Client, user *User, locale string) error
 }
 
 type UserHandler struct {
 	userService     IUserService
 	userFromContext func(ctx context.Context) (*auth.Token, bool)
+	authClient      *auth.Client
 }
 
-// func NewUserHandler(userService IUserService) *UserHandler {
-// 	return &UserHandler{userService: userService}
-// }
-
-func NewUserHandler(userService IUserService, UserFromContext func(ctx context.Context) (*auth.Token, bool)) *UserHandler {
-	return &UserHandler{userService: userService, userFromContext: UserFromContext}
+func NewUserHandler(userService IUserService, UserFromContext func(ctx context.Context) (*auth.Token, bool), authClient *auth.Client) *UserHandler {
+	return &UserHandler{userService: userService, userFromContext: UserFromContext, authClient: authClient}
 }
 
 func (h *UserHandler) RegisterRoutes(r chi.Router) {
@@ -68,7 +65,7 @@ func (h *UserHandler) UpdateLocale(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid locale", http.StatusBadRequest)
 		return
 	}
-	if err := h.userService.UpdateLocale(r.Context(), user, request.Locale); err != nil {
+	if err := h.userService.UpdateLocale(r.Context(), h.authClient, user, request.Locale); err != nil {
 		http.Error(w, "could not update user locale", http.StatusInternalServerError)
 		return
 	}
@@ -82,6 +79,7 @@ func (h *UserHandler) currentUser(r *http.Request) (*User, error) {
 	}
 	user, err := h.userService.Upsert(
 		r.Context(),
+		h.authClient,
 		firebaseUser.UID,
 		claimString(firebaseUser.Claims, "name"),
 		claimString(firebaseUser.Claims, "picture"),

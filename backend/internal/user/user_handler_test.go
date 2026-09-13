@@ -13,11 +13,11 @@ type userServiceMock struct {
 	user *User
 }
 
-func (u *userServiceMock) Upsert(ctx context.Context, firebaseUID, displayName, photoURL, email, locale string) (*User, error) {
+func (u *userServiceMock) Upsert(ctx context.Context, authClient *auth.Client, firebaseUID, displayName, photoURL, email, locale string) (*User, error) {
 	return u.user, nil
 }
 
-func (u *userServiceMock) UpdateLocale(ctx context.Context, user *User, locale string) error {
+func (u *userServiceMock) UpdateLocale(ctx context.Context, authClient *auth.Client, user *User, locale string) error {
 	return nil
 }
 
@@ -53,7 +53,7 @@ func TestGetMe(t *testing.T) {
 	// 	},
 	// 	ok: true,
 	// }
-	handler := NewUserHandler(userServiceMock, userFromContextMock)
+	handler := NewUserHandler(userServiceMock, userFromContextMock, nil)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/me", nil)
@@ -85,7 +85,7 @@ func TestGetMe_Unauthorized(t *testing.T) {
 	// authmwMock := &authmwMock{
 	// 	ok: false,
 	// }
-	handler := NewUserHandler(nil, userFromContextMock)
+	handler := NewUserHandler(nil, userFromContextMock, nil)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/me", nil)
@@ -119,7 +119,7 @@ func TestUpdateLocale(t *testing.T) {
 	// 	},
 	// 	ok: true,
 	// }
-	handler := NewUserHandler(userServiceMock, userFromContextMock)
+	handler := NewUserHandler(userServiceMock, userFromContextMock, nil)
 
 	w := httptest.NewRecorder()
 	body := strings.NewReader(`{"locale": "en"}`)

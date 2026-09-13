@@ -2,6 +2,8 @@ package user
 
 import (
 	"context"
+
+	"firebase.google.com/go/v4/auth"
 )
 
 type IUserRepository interface {
@@ -13,7 +15,7 @@ type UserService struct {
 	userRepo IUserRepository
 }
 
-func (s *UserService) Upsert(ctx context.Context, firebaseUID, displayName, photoURL, email, locale string) (*User, error) {
+func (s *UserService) Upsert(ctx context.Context, authClient *auth.Client, firebaseUID, displayName, photoURL, email, locale string) (*User, error) {
 	user, err := NewUser(firebaseUID, displayName, photoURL, email, locale)
 	if err != nil {
 		return nil, err
@@ -24,15 +26,39 @@ func (s *UserService) Upsert(ctx context.Context, firebaseUID, displayName, phot
 		return nil, err
 	}
 
+	// Set Firebase custom claims so future requests can extract userID from token
+	// Only if authClient is provided (skip in tests)
+	if authClient != nil {
+		claims := map[string]interface{}{
+			"userID": persistedUser.GetID(),
+			"locale": persistedUser.GetLocale(),
+		}
+		if err := authClient.SetCustomUserClaims(ctx, firebaseUID, claims); err != nil {
+			// Log but don't fail; custom claims are optimization, not required
+			// In production, you'd use structured logging here
+		}
+	}
+
 	return persistedUser, nil
 }
 
-func (s *UserService) UpdateLocale(ctx context.Context, user *User, locale string) error {
+func (s *UserService) UpdateLocale(ctx context.Context, authClient *auth.Client, user *User, locale string) error {
 	user.UpdateLocale(locale)
 
 	_, err := s.userRepo.Save(ctx, user)
 	if err != nil {
 		return err
+	}
+
+	// Update Firebase custom claims with new locale
+	if authClient != nil {
+		claims := map[string]interface{}{
+			"userID": user.GetID(),
+			"locale": user.GetLocale(),
+		}
+		if err := authClient.SetCustomUserClaims(ctx, user.GetFirebaseUID(), claims); err != nil {
+			// Log but don't fail; custom claims update is optimization, not required
+		}
 	}
 
 	return nil

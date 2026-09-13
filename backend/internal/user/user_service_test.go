@@ -29,7 +29,7 @@ func TestUserService_Upsert_Success(t *testing.T) {
 	service := NewUserService(mockRepo)
 
 	// when
-	user, err := service.Upsert(t.Context(), "firebaseUID", "displayName", "photoURL", "email", "locale")
+	user, err := service.Upsert(t.Context(), nil, "firebaseUID", "displayName", "photoURL", "email", "locale")
 
 	//then
 	assert.NoError(t, err)
@@ -43,7 +43,7 @@ func TestUserService_Upsert_DatabaseError(t *testing.T) {
 	service := NewUserService(mockRepo)
 
 	// when
-	user, err := service.Upsert(t.Context(), "firebaseUID", "displayName", "photoURL", "email", "locale")
+	user, err := service.Upsert(t.Context(), nil, "firebaseUID", "displayName", "photoURL", "email", "locale")
 
 	//then
 	assert.Error(t, err)
@@ -56,7 +56,7 @@ func TestUserService_Upsert_MissingMandatoryFieldError(t *testing.T) {
 	service := NewUserService(mockRepo)
 
 	// when
-	user, err := service.Upsert(t.Context(), "", "displayName", "photoURL", "email", "locale")
+	user, err := service.Upsert(t.Context(), nil, "", "displayName", "photoURL", "email", "locale")
 
 	//then
 	assert.Error(t, err)
@@ -70,7 +70,7 @@ func TestUserService_UpdateLocale_Success(t *testing.T) {
 
 	// when
 	user, _ := NewUser("f", "d", "p", "e", "")
-	err := service.UpdateLocale(t.Context(), user, "en")
+	err := service.UpdateLocale(t.Context(), nil, user, "en")
 
 	//then
 	assert.NoError(t, err)
@@ -84,7 +84,7 @@ func TestUserService_UpdateLocale_Error(t *testing.T) {
 
 	// when
 	user, _ := NewUser("f", "d", "p", "e", "")
-	err := service.UpdateLocale(t.Context(), user, "en")
+	err := service.UpdateLocale(t.Context(), nil, user, "en")
 
 	//then
 	assert.Error(t, err)

@@ -58,6 +58,7 @@ func (rt *Router) Setup() http.Handler {
 	r.Route("/api", func(r chi.Router) {
 		r.Use(authmw.Middleware(rt.authClient))
 
+		// Note: handlers now have authClient for setting Firebase custom claims
 		rt.userHandler.RegisterRoutes(r)
 		rt.reportHandler.RegisterRoutes(r)
 	})

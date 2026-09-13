@@ -37,6 +37,7 @@ type ReportHandler struct {
 	reportService   IReportService
 	userService     user.IUserService
 	userFromContext func(ctx context.Context) (*auth.Token, bool)
+	authClient      *auth.Client
 }
 
 func (h *ReportHandler) RegisterRoutes(r chi.Router) {
@@ -44,8 +45,8 @@ func (h *ReportHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/reports/{reportID}", h.GetActive)
 }
 
-func NewReportHandler(reportService IReportService, userService user.IUserService, UserFromContext func(ctx context.Context) (*auth.Token, bool)) *ReportHandler {
-	return &ReportHandler{reportService: reportService, userService: userService, userFromContext: UserFromContext}
+func NewReportHandler(reportService IReportService, userService user.IUserService, UserFromContext func(ctx context.Context) (*auth.Token, bool), authClient *auth.Client) *ReportHandler {
+	return &ReportHandler{reportService: reportService, userService: userService, userFromContext: UserFromContext, authClient: authClient}
 }
 
 type reportResponse struct {
@@ -276,7 +277,12 @@ func (h *ReportHandler) currentUserID(r *http.Request) (int64, error) {
 	if !ok {
 		return 0, errUnauthorized
 	}
-	currentUser, err := h.userService.Upsert(r.Context(), firebaseUser.UID, reportClaimString(firebaseUser.Claims, "name"), reportClaimString(firebaseUser.Claims, "picture"), reportClaimString(firebaseUser.Claims, "email"), reportRequestLocale(r))
+	// Try to extract userID from Firebase custom claims first (set on auth)
+	if userIDClaim, ok := firebaseUser.Claims["userID"].(float64); ok {
+		return int64(userIDClaim), nil
+	}
+	// Fall back to Upsert if claims not set (e.g., old tokens)
+	currentUser, err := h.userService.Upsert(r.Context(), h.authClient, firebaseUser.UID, reportClaimString(firebaseUser.Claims, "name"), reportClaimString(firebaseUser.Claims, "picture"), reportClaimString(firebaseUser.Claims, "email"), reportRequestLocale(r))
 	if err != nil {
 		return 0, err
 	}

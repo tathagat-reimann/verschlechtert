@@ -66,11 +66,11 @@ func main() {
 
 	userRepo := user.NewUserRepository(pool)
 	userService := user.NewUserService(userRepo)
-	userHandler := user.NewUserHandler(userService, authmw.UserFromContext)
+	userHandler := user.NewUserHandler(userService, authmw.UserFromContext, authClient)
 
 	reportRepo := report.NewReportRepository(pool)
 	reportService := report.NewReportService(reportRepo)
-	reportHandler := report.NewReportHandler(reportService, userService, authmw.UserFromContext)
+	reportHandler := report.NewReportHandler(reportService, userService, authmw.UserFromContext, authClient)
 
 	rt := router.NewRouter(userHandler, reportHandler, cfg.AllowedOrigins, authClient)
 	handler := rt.Setup()
