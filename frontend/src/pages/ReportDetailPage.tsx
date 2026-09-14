@@ -122,7 +122,7 @@ export function ReportDetailPage() {
           {report.observedAt && (
             <Typography variant="body2" color="text.secondary">{report.observedAt.slice(0, 10)}</Typography>
           )}
-          {report.images.length > 0 && (
+          {report.images && report.images.length > 0 && (
             <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
               {report.images.map((image) => (
                 <Box key={image.imageUrl} component="img" src={image.imageUrl} sx={{ width: 160, height: 160, objectFit: "cover", borderRadius: 1 }} />
@@ -135,7 +135,7 @@ export function ReportDetailPage() {
       <Paper variant="outlined" sx={{ p: { xs: 3, md: 5 } }}>
         <Stack spacing={2}>
           <Typography variant="h6">{t("reportDetail.commentsTitle")}</Typography>
-          {report.comments.length === 0 ? (
+          {!report.comments || report.comments.length === 0 ? (
             <Typography color="text.secondary">{t("reportDetail.noComments")}</Typography>
           ) : (
             <Stack spacing={2}>
@@ -182,7 +182,7 @@ export function ReportDetailPage() {
       <Paper variant="outlined" sx={{ p: { xs: 3, md: 5 } }}>
         <Stack spacing={2}>
           <Typography variant="h6">{t("reportDetail.alternativesTitle")}</Typography>
-          {report.alternatives.length === 0 ? (
+          {!report.alternatives || report.alternatives.length === 0 ? (
             <Typography color="text.secondary">{t("reportDetail.noAlternatives")}</Typography>
           ) : (
             <Stack spacing={2}>

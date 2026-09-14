@@ -134,7 +134,7 @@ export async function getLatestReports(query = "", locale = "de", limit = 24, of
 }
 
 export async function getReportDetail(id: number, locale = "de") {
-  const response = await apiFetch(`/api/reports/${id}?${new URLSearchParams({ locale }).toString()}`);
+  const response = await apiFetch(`/api/reports/${id}`);
   return response.json() as Promise<ReportDetail>;
 }
 
@@ -162,12 +162,12 @@ export async function toggleReportLike(id: number) {
 }
 
 export async function getCatalogOptions(locale = "de") {
-  const response = await apiFetch(`/api/catalog/options?${new URLSearchParams({ locale }).toString()}`);
+  const response = await apiFetch(`/api/catalog/options`);
   return response.json() as Promise<CatalogOptions>;
 }
 
 export async function getMySubmissions(locale = "de") {
-  const response = await apiFetch(`/api/me/submissions?${new URLSearchParams({ locale }).toString()}`);
+  const response = await apiFetch(`/api/me/submissions`);
   return response.json() as Promise<Submission[]>;
 }
 

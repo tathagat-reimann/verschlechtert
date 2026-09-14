@@ -44,7 +44,13 @@ type ReportHandler struct {
 
 func (h *ReportHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/reports", h.ListActive)
-	r.Get("/reports/{reportID}", h.GetActive)
+	r.Get("/reports/{id}", h.GetActive)
+
+	r.Post("/api/reports/{id}/comments", h.AddComment)
+	r.Post("/api/reports/{id}/alternatives", h.AddAlternative)
+	r.Post("/api/reports/{id}/like", h.ToggleLike)
+
+	r.Post("/reports", h.Create)
 }
 
 func NewReportHandler(reportService IReportService, userService user.IUserService, UserFromContext func(ctx context.Context) (*auth.Token, bool), authClient *auth.Client) *ReportHandler {
