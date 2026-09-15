@@ -146,13 +146,13 @@ func (repo *ReportRepository) list(ctx context.Context, locale, suffix string, a
 			createdByUserID: createdByUserID,
 			createdAt:       createdAt,
 		}
-		if err := repo.loadLikes(ctx, report); err != nil {
-			return nil, err
-		}
 		reports = append(reports, report)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("reading reports: %w", err)
+	}
+	if err := repo.loadLikesForReports(ctx, reports); err != nil {
+		return nil, err
 	}
 	return reports, nil
 }
@@ -224,27 +224,45 @@ func (repo *ReportRepository) loadComments(ctx context.Context, report *Report) 
 }
 
 func (repo *ReportRepository) loadLikes(ctx context.Context, report *Report) error {
+	return repo.loadLikesForReports(ctx, []*Report{report})
+}
+
+func (repo *ReportRepository) loadLikesForReports(ctx context.Context, reports []*Report) error {
+	if len(reports) == 0 {
+		return nil
+	}
+
+	reportIDs := make([]int64, 0, len(reports))
+	likesByReportID := make(map[int64][]ReportLike, len(reports))
+	for _, report := range reports {
+		reportIDs = append(reportIDs, report.id)
+		likesByReportID[report.id] = make([]ReportLike, 0)
+	}
+
 	rows, err := repo.pool.Query(ctx, `
-		SELECT user_id, created_at
+		SELECT report_id, user_id, created_at
 		FROM report_like
-		WHERE report_id = $1
-		ORDER BY created_at ASC, user_id ASC
-	`, report.id)
+		WHERE report_id = ANY($1)
+		ORDER BY report_id ASC, created_at ASC, user_id ASC
+	`, reportIDs)
 	if err != nil {
 		return fmt.Errorf("loading report likes: %w", err)
 	}
 	defer rows.Close()
 
-	report.likes = make([]ReportLike, 0)
 	for rows.Next() {
+		var reportID int64
 		var like ReportLike
-		if err := rows.Scan(&like.createdByUserID, &like.createdAt); err != nil {
+		if err := rows.Scan(&reportID, &like.createdByUserID, &like.createdAt); err != nil {
 			return fmt.Errorf("scanning report like: %w", err)
 		}
-		report.likes = append(report.likes, like)
+		likesByReportID[reportID] = append(likesByReportID[reportID], like)
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("reading report likes: %w", err)
+	}
+	for _, report := range reports {
+		report.likes = likesByReportID[report.id]
 	}
 	return nil
 }

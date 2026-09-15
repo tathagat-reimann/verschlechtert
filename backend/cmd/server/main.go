@@ -25,7 +25,7 @@ import (
 )
 
 // NewPool creates a Postgres connection pool from a DATABASE_URL connection string.
-func createPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
+func createPool(ctx context.Context, databaseURL, appEnvironment string) (*pgxpool.Pool, error) {
 	// 1. Parse config instead of using pgxpool.New
 	config, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
@@ -33,7 +33,11 @@ func createPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) 
 	}
 
 	// 2. Attach OpenTelemetry tracer
-	config.ConnConfig.Tracer = otelpgx.NewTracer()
+	tracerOptions := make([]otelpgx.Option, 0, 1)
+	if appEnvironment != "production" {
+		tracerOptions = append(tracerOptions, otelpgx.WithIncludeQueryParameters())
+	}
+	config.ConnConfig.Tracer = otelpgx.NewTracer(tracerOptions...)
 
 	// 3. Create pool with config
 	pool, err := pgxpool.NewWithConfig(ctx, config)
@@ -69,7 +73,7 @@ func main() {
 
 	databaseURL := cfg.DatabaseURL
 
-	pool, err := createPool(ctx, databaseURL)
+	pool, err := createPool(ctx, databaseURL, cfg.AppEnvironment)
 	if err != nil {
 		log.Fatalf("connecting to database: %v", err)
 	}
