@@ -14,6 +14,10 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	httpmw "verschlechtert/backend/internal/httmw"
+	errorMessage "verschlechtert/backend/internal/util"
+	responseUtil "verschlechtert/backend/internal/util"
 )
 
 type IUserService interface {
@@ -56,7 +60,8 @@ func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	user, err := h.currentUser(r.WithContext(ctx))
 	if err != nil {
 		span.RecordError(err)
-		http.Error(w, "could not load user", http.StatusInternalServerError)
+		correlationID := httpmw.CorrelationIDFromContext(r.Context())
+		responseUtil.WriteErrorJSON(w, errorMessage.ErrLoadingUser, correlationID)
 		return
 	}
 	writeUserJSON(w, user)
@@ -70,10 +75,11 @@ func (h *UserHandler) UpdateLocale(w http.ResponseWriter, r *http.Request) {
 	)
 	defer span.End()
 
+	correlationID := httpmw.CorrelationIDFromContext(r.Context())
 	user, err := h.currentUser(r.WithContext(ctx))
 	if err != nil {
 		span.RecordError(err)
-		http.Error(w, "could not load user", http.StatusInternalServerError)
+		responseUtil.WriteErrorJSON(w, errorMessage.ErrLoadingUser, correlationID)
 		return
 	}
 
@@ -81,12 +87,14 @@ func (h *UserHandler) UpdateLocale(w http.ResponseWriter, r *http.Request) {
 		Locale string `json:"locale"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || !localePattern.MatchString(request.Locale) {
-		http.Error(w, "invalid locale", http.StatusBadRequest)
+		// http.Error(w, "invalid locale", http.StatusBadRequest)
+		responseUtil.WriteErrorJSON(w, errorMessage.InvalidLocale, correlationID)
 		return
 	}
 	if err := h.userService.UpdateLocale(ctx, h.authClient, user, request.Locale); err != nil {
 		span.RecordError(err)
-		http.Error(w, "could not update user locale", http.StatusInternalServerError)
+		// http.Error(w, "could not update user locale", http.StatusInternalServerError)
+		responseUtil.WriteErrorJSON(w, errorMessage.ErrUpdateLocale, correlationID)
 		return
 	}
 	writeUserJSON(w, user)
@@ -116,15 +124,16 @@ func (h *UserHandler) currentUser(r *http.Request) (*User, error) {
 }
 
 func writeUserJSON(w http.ResponseWriter, user *User) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(userResponse{
-		ID:          user.GetID(),
-		FirebaseUID: user.GetFirebaseUID(),
-		DisplayName: user.GetDisplayName(),
-		PhotoURL:    user.GetPhotoURL(),
-		Email:       user.GetEmail(),
-		Locale:      user.GetLocale(),
-	})
+	responseUtil.WriteSuccessJSON(w,
+		http.StatusOK,
+		userResponse{
+			ID:          user.GetID(),
+			FirebaseUID: user.GetFirebaseUID(),
+			DisplayName: user.GetDisplayName(),
+			PhotoURL:    user.GetPhotoURL(),
+			Email:       user.GetEmail(),
+			Locale:      user.GetLocale(),
+		})
 }
 
 var localePattern = regexp.MustCompile(`^(de|en)$`)

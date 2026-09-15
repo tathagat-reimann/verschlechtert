@@ -17,6 +17,10 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	httpmw "verschlechtert/backend/internal/httmw"
+	errorMessage "verschlechtert/backend/internal/util"
+	responseUtil "verschlechtert/backend/internal/util"
 )
 
 type IReportService interface {
@@ -105,9 +109,12 @@ func (h *ReportHandler) ListActive(w http.ResponseWriter, r *http.Request) {
 	)
 	defer span.End()
 
+	correlationID := httpmw.CorrelationIDFromContext(r.Context())
+
 	userID, err := h.currentUserID(r)
 	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		// http.Error(w, "unauthorized", http.StatusUnauthorized)
+		responseUtil.WriteErrorJSON(w, errorMessage.Unauthorized, correlationID)
 		return
 	}
 	limit, offset := pagination(r)
@@ -115,10 +122,11 @@ func (h *ReportHandler) ListActive(w http.ResponseWriter, r *http.Request) {
 	reports, err := h.reportService.ListActive(ctx, locale, limit, offset)
 	if err != nil {
 		span.RecordError(err)
-		http.Error(w, "could not load reports", http.StatusInternalServerError)
+		// http.Error(w, "could not load reports", http.StatusInternalServerError)
+		responseUtil.WriteErrorJSON(w, errorMessage.ErrLoadingAllReports, correlationID)
 		return
 	}
-	writeJSON(w, map[string]any{"reports": mapReports(reports, userID), "hasMore": len(reports) == limit})
+	writeJSON(w, http.StatusOK, map[string]any{"reports": mapReports(reports, userID), "hasMore": len(reports) == limit})
 }
 
 func (h *ReportHandler) GetActive(w http.ResponseWriter, r *http.Request) {
@@ -129,28 +137,34 @@ func (h *ReportHandler) GetActive(w http.ResponseWriter, r *http.Request) {
 	)
 	defer span.End()
 
+	correlationID := httpmw.CorrelationIDFromContext(r.Context())
+
 	reportID, ok := reportID(w, r)
 	if !ok {
 		return
 	}
 	userID, err := h.currentUserID(r)
 	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		// http.Error(w, "unauthorized", http.StatusUnauthorized)
+		responseUtil.WriteErrorJSON(w, errorMessage.Unauthorized, correlationID)
 		return
 	}
 	locale := h.getLocaleFromClaims(r)
 	report, err := h.reportService.GetActive(ctx, locale, reportID)
 	if err != nil {
 		span.RecordError(err)
-		http.Error(w, "report not found", http.StatusNotFound)
+		// http.Error(w, "report not found", http.StatusNotFound)
+		responseUtil.WriteErrorJSON(w, errorMessage.ReportNotFound, correlationID)
 		return
 	}
-	writeJSON(w, mapReport(report, userID))
+	writeJSON(w, http.StatusOK, mapReport(report, userID))
 }
 
 func (h *ReportHandler) Create(w http.ResponseWriter, r *http.Request) {
 	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.Create")
 	defer span.End()
+
+	correlationID := httpmw.CorrelationIDFromContext(r.Context())
 
 	userID, err := h.currentUserID(r)
 	if err != nil {
@@ -171,11 +185,13 @@ func (h *ReportHandler) Create(w http.ResponseWriter, r *http.Request) {
 		} `json:"images"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "invalid report", http.StatusBadRequest)
+		// http.Error(w, "invalid report", http.StatusBadRequest)
+		responseUtil.WriteErrorJSON(w, errorMessage.ErrJsonDecoding, correlationID)
 		return
 	}
 	if request.BrandID <= 0 || request.CategoryID <= 0 || request.SellerID <= 0 || strings.TrimSpace(request.ProductName) == "" || strings.TrimSpace(request.Description) == "" {
-		http.Error(w, "invalid report", http.StatusBadRequest)
+		// http.Error(w, "invalid report", http.StatusBadRequest)
+		responseUtil.WriteErrorJSON(w, errorMessage.ErrInvalidRequest, correlationID)
 		return
 	}
 
@@ -185,12 +201,14 @@ func (h *ReportHandler) Create(w http.ResponseWriter, r *http.Request) {
 	images := make([]ReportImage, 0, len(request.Images))
 	for _, image := range request.Images {
 		if strings.TrimSpace(image.StoragePath) == "" || strings.TrimSpace(image.ImageURL) == "" {
-			http.Error(w, "invalid report image", http.StatusBadRequest)
+			// http.Error(w, "invalid report image", http.StatusBadRequest)
+			responseUtil.WriteErrorJSON(w, errorMessage.ErrInvalidReportImage, correlationID)
 			return
 		}
 		reportImage, err := NewReportImage(image.StoragePath, image.ImageURL)
 		if err != nil {
-			http.Error(w, "invalid report image", http.StatusBadRequest)
+			// http.Error(w, "invalid report image", http.StatusBadRequest)
+			responseUtil.WriteErrorJSON(w, errorMessage.ErrInvalidReportImage, correlationID)
 			return
 		}
 		images = append(images, *reportImage)
@@ -199,46 +217,53 @@ func (h *ReportHandler) Create(w http.ResponseWriter, r *http.Request) {
 	reportID, err := h.reportService.Create(ctx, request.ProductName, request.Description, category, brand, seller, request.ProductURL, userID, images)
 	if err != nil {
 		span.RecordError(err)
-		http.Error(w, "could not create report", http.StatusInternalServerError)
+		// http.Error(w, "could not create report", http.StatusInternalServerError)
+		responseUtil.WriteErrorJSON(w, errorMessage.ErrCreateReport, correlationID)
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, map[string]any{"id": reportID})
+	writeJSON(w, http.StatusCreated, map[string]any{"id": reportID})
 }
 
 func (h *ReportHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.AddComment")
 	defer span.End()
 
+	correlationID := httpmw.CorrelationIDFromContext(r.Context())
+
 	reportID, ok := reportID(w, r)
 	if !ok {
 		return
 	}
 	userID, err := h.currentUserID(r)
 	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		// http.Error(w, "unauthorized", http.StatusUnauthorized)
+		responseUtil.WriteErrorJSON(w, errorMessage.Unauthorized, correlationID)
 		return
 	}
 	var request struct {
 		Body string `json:"body"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || strings.TrimSpace(request.Body) == "" {
-		http.Error(w, "invalid comment", http.StatusBadRequest)
+		// http.Error(w, "invalid comment", http.StatusBadRequest)
+		responseUtil.WriteErrorJSON(w, errorMessage.ErrInvalidRequest, correlationID)
 		return
 	}
 	if err := h.reportService.AddComment(ctx, reportID, userID, request.Body); err != nil {
 		span.RecordError(err)
-		http.Error(w, "could not add comment", http.StatusInternalServerError)
+		// http.Error(w, "could not add comment", http.StatusInternalServerError)
+		responseUtil.WriteErrorJSON(w, errorMessage.ErrAddComment, correlationID)
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, map[string]any{"body": strings.TrimSpace(request.Body), "authorId": userID})
+	// w.WriteHeader(http.StatusCreated)
+	writeJSON(w, http.StatusCreated, map[string]any{"body": strings.TrimSpace(request.Body), "authorId": userID})
 }
 
 func (h *ReportHandler) ToggleLike(w http.ResponseWriter, r *http.Request) {
 	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.ToggleLike")
 	defer span.End()
+
+	correlationID := httpmw.CorrelationIDFromContext(r.Context())
 
 	reportID, ok := reportID(w, r)
 	if !ok {
@@ -246,14 +271,16 @@ func (h *ReportHandler) ToggleLike(w http.ResponseWriter, r *http.Request) {
 	}
 	userID, err := h.currentUserID(r)
 	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		// http.Error(w, "unauthorized", http.StatusUnauthorized)
+		responseUtil.WriteErrorJSON(w, errorMessage.Unauthorized, correlationID)
 		return
 	}
 	locale := h.getLocaleFromClaims(r)
 	report, err := h.reportService.GetActive(ctx, locale, reportID)
 	if err != nil {
 		span.RecordError(err)
-		http.Error(w, "report not found", http.StatusNotFound)
+		// http.Error(w, "report not found", http.StatusNotFound)
+		responseUtil.WriteErrorJSON(w, errorMessage.ReportNotFound, correlationID)
 		return
 	}
 	liked := false
@@ -269,7 +296,8 @@ func (h *ReportHandler) ToggleLike(w http.ResponseWriter, r *http.Request) {
 		err = h.reportService.AddLike(r.Context(), reportID, userID)
 	}
 	if err != nil {
-		http.Error(w, "could not toggle like", http.StatusInternalServerError)
+		// http.Error(w, "could not toggle like", http.StatusInternalServerError)
+		responseUtil.WriteErrorJSON(w, errorMessage.ErrToggleLike, correlationID)
 		return
 	}
 	count := len(report.GetLikes())
@@ -278,17 +306,23 @@ func (h *ReportHandler) ToggleLike(w http.ResponseWriter, r *http.Request) {
 	} else {
 		count++
 	}
-	writeJSON(w, map[string]any{"liked": !liked, "count": count})
+	writeJSON(w, http.StatusOK, map[string]any{"liked": !liked, "count": count})
 }
 
 func (h *ReportHandler) AddAlternative(w http.ResponseWriter, r *http.Request) {
+	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.AddAlternative")
+	defer span.End()
+
+	correlationID := httpmw.CorrelationIDFromContext(r.Context())
+
 	reportID, ok := reportID(w, r)
 	if !ok {
 		return
 	}
 	userID, err := h.currentUserID(r)
 	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		// http.Error(w, "unauthorized", http.StatusUnauthorized)
+		responseUtil.WriteErrorJSON(w, errorMessage.Unauthorized, correlationID)
 		return
 	}
 	var request struct {
@@ -297,18 +331,27 @@ func (h *ReportHandler) AddAlternative(w http.ResponseWriter, r *http.Request) {
 		ProductName string `json:"productName"`
 		ProductURL  string `json:"productUrl"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.BrandID <= 0 || request.SellerID <= 0 || strings.TrimSpace(request.ProductName) == "" {
-		http.Error(w, "invalid alternative", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		// http.Error(w, "invalid alternative", http.StatusBadRequest)
+		responseUtil.WriteErrorJSON(w, errorMessage.ErrJsonDecoding, correlationID)
 		return
 	}
+
+	if request.BrandID <= 0 || request.SellerID <= 0 || strings.TrimSpace(request.ProductName) == "" {
+		// http.Error(w, "invalid alternative", http.StatusBadRequest)
+		responseUtil.WriteErrorJSON(w, errorMessage.ErrInvalidAlternative, correlationID)
+		return
+	}
+
 	brand := &Brand{id: request.BrandID}
 	seller := &Seller{id: request.SellerID}
-	if err := h.reportService.AddAlternative(r.Context(), reportID, request.ProductName, brand, seller, request.ProductURL, userID); err != nil {
-		http.Error(w, "could not add alternative", http.StatusInternalServerError)
+	if err := h.reportService.AddAlternative(ctx, reportID, request.ProductName, brand, seller, request.ProductURL, userID); err != nil {
+		// http.Error(w, "could not add alternative", http.StatusInternalServerError)
+		responseUtil.WriteErrorJSON(w, errorMessage.ErrAddAlternative, correlationID)
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, map[string]any{"productName": strings.TrimSpace(request.ProductName), "suggestedById": userID})
+	// w.WriteHeader(http.StatusCreated)
+	writeJSON(w, http.StatusCreated, map[string]any{"productName": strings.TrimSpace(request.ProductName), "suggestedById": userID})
 }
 
 func (h *ReportHandler) currentUserID(r *http.Request) (int64, error) {
@@ -375,9 +418,12 @@ func mapReport(report *Report, userID int64) reportResponse {
 }
 
 func reportID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	correlationID := httpmw.CorrelationIDFromContext(r.Context())
+
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		http.Error(w, "invalid report id", http.StatusBadRequest)
+		// http.Error(w, "invalid report id", http.StatusBadRequest)
+		responseUtil.WriteErrorJSON(w, errorMessage.ErrInvalidReportID, correlationID)
 		return 0, false
 	}
 	return id, true
@@ -394,9 +440,13 @@ func pagination(r *http.Request) (int, int) {
 	return limit, offset
 }
 
-func writeJSON(w http.ResponseWriter, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(value)
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	// w.Header().Set("Content-Type", "application/json")
+	responseUtil.WriteSuccessJSON(w,
+		status,
+		value,
+	)
+	// _ = json.NewEncoder(w).Encode(value)
 }
 
 func reportClaimString(claims map[string]interface{}, key string) string {

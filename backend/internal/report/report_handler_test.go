@@ -122,7 +122,7 @@ func TestReportHandler_ListActive(t *testing.T) {
 	handler.ListActive(response, httptest.NewRequest(http.MethodGet, "/reports", nil))
 
 	assert.Equal(t, http.StatusOK, response.Code)
-	assert.JSONEq(t, `{"reports":[{"id":0,"productName":"product","description":"description","brand":"brand","category":"category","seller":"seller","createdAt":"0001-01-01T00:00:00Z","likeCount":0,"likedByMe":false,"isOwner":false,"hasAlternative":false}] ,"hasMore":false}`, response.Body.String())
+	assert.JSONEq(t, `{"data":{"reports":[{"id":0,"productName":"product","description":"description","brand":"brand","category":"category","seller":"seller","createdAt":"0001-01-01T00:00:00Z","likeCount":0,"likedByMe":false,"isOwner":false,"hasAlternative":false}],"hasMore":false}}`, response.Body.String())
 }
 
 func TestGetActive(t *testing.T) {
@@ -133,7 +133,7 @@ func TestGetActive(t *testing.T) {
 	handler.GetActive(response, requestWithReportID(http.MethodGet, "/reports/1", nil))
 
 	assert.Equal(t, http.StatusOK, response.Code)
-	assert.JSONEq(t, `{"id":0,"productName":"product","description":"description","brand":"brand","category":"category","seller":"seller","createdAt":"0001-01-01T00:00:00Z","likeCount":0,"likedByMe":false,"isOwner":false,"hasAlternative":false}`, response.Body.String())
+	assert.JSONEq(t, `{"data":{"id":0,"productName":"product","description":"description","brand":"brand","category":"category","seller":"seller","createdAt":"0001-01-01T00:00:00Z","likeCount":0,"likedByMe":false,"isOwner":false,"hasAlternative":false}}`, response.Body.String())
 }
 
 func TestReportHandler_Create(t *testing.T) {
@@ -145,7 +145,7 @@ func TestReportHandler_Create(t *testing.T) {
 	handler.Create(response, httptest.NewRequest(http.MethodPost, "/reports", body))
 
 	assert.Equal(t, http.StatusCreated, response.Code)
-	assert.JSONEq(t, `{"id":42}`, response.Body.String())
+	assert.JSONEq(t, `{"data":{"id":42}}`, response.Body.String())
 	assert.Zero(t, service.createdUserID)
 }
 
@@ -157,6 +157,7 @@ func TestReportHandler_AddComment(t *testing.T) {
 	handler.AddComment(response, requestWithReportID(http.MethodPost, "/reports/1/comments", strings.NewReader(`{"body":"comment"}`)))
 
 	assert.Equal(t, http.StatusCreated, response.Code)
+	assert.JSONEq(t, `{"data":{"body":"comment","authorId":0}}`, response.Body.String())
 	assert.Equal(t, "comment", service.comment)
 }
 
@@ -169,7 +170,7 @@ func TestReportHandler_ToggleLike_AddsLike(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, response.Code)
 	assert.True(t, service.addedLike)
-	assert.JSONEq(t, `{"liked":true,"count":1}`, response.Body.String())
+	assert.JSONEq(t, `{"data":{"liked":true,"count":1}}`, response.Body.String())
 }
 
 func TestReportHandler_AddAlternative(t *testing.T) {
@@ -181,5 +182,6 @@ func TestReportHandler_AddAlternative(t *testing.T) {
 	handler.AddAlternative(response, requestWithReportID(http.MethodPost, "/reports/1/alternatives", body))
 
 	assert.Equal(t, http.StatusCreated, response.Code)
+	assert.JSONEq(t, `{"data":{"productName":"alternative","suggestedById":0}}`, response.Body.String())
 	assert.Equal(t, "alternative", service.alternativeName)
 }
