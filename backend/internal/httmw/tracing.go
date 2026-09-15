@@ -8,8 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 var tracer = otel.Tracer("verschlechtert/backend")
@@ -74,35 +72,28 @@ func userIDFromContext(ctx context.Context) int64 {
 // OpenTelemetryTracing returns middleware that records request tracing information
 func OpenTelemetryTracing(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		attrs := []attribute.KeyValue{
-			attribute.String("http.method", r.Method),
-			attribute.String("http.url", r.URL.String()),
-			attribute.String("http.target", r.URL.Path),
-			attribute.String("http.host", r.Host),
-			attribute.String("http.scheme", r.URL.Scheme),
-			attribute.String("http.user_agent", r.UserAgent()),
-			attribute.String("http.client_ip", r.RemoteAddr),
-		}
-		if id := CorrelationIDFromContext(r.Context()); id != "" {
-			attrs = append(attrs, attribute.String("correlation.id", id))
-		}
-		if userID := userIDFromContext(r.Context()); userID > 0 {
-			attrs = append(attrs, attribute.Int64("user.id", userID))
+
+		// 1. Extract or generate correlation ID
+		id := r.Header.Get("X-Correlation-ID")
+		if id == "" {
+			id = uuid.NewString()
 		}
 
-		ctx, span := tracer.Start(r.Context(), r.Method+" "+r.URL.Path,
-			trace.WithAttributes(attrs...),
-		)
-		defer span.End()
+		// 2. Inject correlation ID into context
+		ctx := ContextWithCorrelationID(r.Context(), id)
 
-		// Wrap response writer to capture status code
-		wrapped := &statusCodeWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		// 3. Inject user ID into context (your existing logic)
+		userID := userIDFromContext(ctx)
+		if userID > 0 {
+			ctx = context.WithValue(ctx, "user.id", userID)
+		}
 
-		next.ServeHTTP(wrapped, r.WithContext(ctx))
+		// 4. Propagate updated context
+		r = r.WithContext(ctx)
 
-		// Record response status
-		span.SetAttributes(
-			attribute.Int("http.status_code", wrapped.statusCode),
-		)
+		// 5. Set correlation ID header
+		w.Header().Set("X-Correlation-ID", id)
+
+		next.ServeHTTP(w, r)
 	})
 }

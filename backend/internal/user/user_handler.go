@@ -11,9 +11,6 @@ import (
 	// authmw "verschlechtert/backend/internal/auth"
 	"firebase.google.com/go/v4/auth"
 	"github.com/go-chi/chi/v5"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	httpmw "verschlechtert/backend/internal/httmw"
 	errorMessage "verschlechtert/backend/internal/util"
@@ -50,35 +47,20 @@ type userResponse struct {
 }
 
 func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
-	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "user.handler.GetMe",
-		trace.WithAttributes(
-			attribute.String("http.route", "/me"),
-		),
-	)
-	defer span.End()
-
-	user, err := h.currentUser(r.WithContext(ctx))
+	user, err := h.currentUser(r)
 	if err != nil {
-		span.RecordError(err)
 		correlationID := httpmw.CorrelationIDFromContext(r.Context())
 		responseUtil.WriteErrorJSON(w, errorMessage.ErrLoadingUser, correlationID)
 		return
 	}
+
 	writeUserJSON(w, user)
 }
 
 func (h *UserHandler) UpdateLocale(w http.ResponseWriter, r *http.Request) {
-	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "user.handler.UpdateLocale",
-		trace.WithAttributes(
-			attribute.String("http.route", "/me/locale"),
-		),
-	)
-	defer span.End()
-
 	correlationID := httpmw.CorrelationIDFromContext(r.Context())
-	user, err := h.currentUser(r.WithContext(ctx))
+	user, err := h.currentUser(r)
 	if err != nil {
-		span.RecordError(err)
 		responseUtil.WriteErrorJSON(w, errorMessage.ErrLoadingUser, correlationID)
 		return
 	}
@@ -91,8 +73,7 @@ func (h *UserHandler) UpdateLocale(w http.ResponseWriter, r *http.Request) {
 		responseUtil.WriteErrorJSON(w, errorMessage.InvalidLocale, correlationID)
 		return
 	}
-	if err := h.userService.UpdateLocale(ctx, h.authClient, user, request.Locale); err != nil {
-		span.RecordError(err)
+	if err := h.userService.UpdateLocale(r.Context(), h.authClient, user, request.Locale); err != nil {
 		// http.Error(w, "could not update user locale", http.StatusInternalServerError)
 		responseUtil.WriteErrorJSON(w, errorMessage.ErrUpdateLocale, correlationID)
 		return

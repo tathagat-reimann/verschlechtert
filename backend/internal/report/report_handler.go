@@ -14,9 +14,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"firebase.google.com/go/v4/auth"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	httpmw "verschlechtert/backend/internal/httmw"
 	errorMessage "verschlechtert/backend/internal/util"
@@ -102,27 +99,17 @@ type alternativeResponse struct {
 }
 
 func (h *ReportHandler) ListActive(w http.ResponseWriter, r *http.Request) {
-	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.ListActive",
-		trace.WithAttributes(
-			attribute.String("http.route", "/reports"),
-		),
-	)
-	defer span.End()
-
 	correlationID := httpmw.CorrelationIDFromContext(r.Context())
 
 	userID, err := h.currentUserID(r)
 	if err != nil {
-		// http.Error(w, "unauthorized", http.StatusUnauthorized)
 		responseUtil.WriteErrorJSON(w, errorMessage.Unauthorized, correlationID)
 		return
 	}
 	limit, offset := pagination(r)
 	locale := h.getLocaleFromClaims(r)
-	reports, err := h.reportService.ListActive(ctx, locale, limit, offset)
+	reports, err := h.reportService.ListActive(r.Context(), locale, limit, offset)
 	if err != nil {
-		span.RecordError(err)
-		// http.Error(w, "could not load reports", http.StatusInternalServerError)
 		responseUtil.WriteErrorJSON(w, errorMessage.ErrLoadingAllReports, correlationID)
 		return
 	}
@@ -130,13 +117,6 @@ func (h *ReportHandler) ListActive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ReportHandler) GetActive(w http.ResponseWriter, r *http.Request) {
-	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.GetActive",
-		trace.WithAttributes(
-			attribute.String("http.route", "/reports/{reportID}"),
-		),
-	)
-	defer span.End()
-
 	correlationID := httpmw.CorrelationIDFromContext(r.Context())
 
 	reportID, ok := reportID(w, r)
@@ -145,15 +125,12 @@ func (h *ReportHandler) GetActive(w http.ResponseWriter, r *http.Request) {
 	}
 	userID, err := h.currentUserID(r)
 	if err != nil {
-		// http.Error(w, "unauthorized", http.StatusUnauthorized)
 		responseUtil.WriteErrorJSON(w, errorMessage.Unauthorized, correlationID)
 		return
 	}
 	locale := h.getLocaleFromClaims(r)
-	report, err := h.reportService.GetActive(ctx, locale, reportID)
+	report, err := h.reportService.GetActive(r.Context(), locale, reportID)
 	if err != nil {
-		span.RecordError(err)
-		// http.Error(w, "report not found", http.StatusNotFound)
 		responseUtil.WriteErrorJSON(w, errorMessage.ReportNotFound, correlationID)
 		return
 	}
@@ -161,9 +138,6 @@ func (h *ReportHandler) GetActive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ReportHandler) Create(w http.ResponseWriter, r *http.Request) {
-	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.Create")
-	defer span.End()
-
 	correlationID := httpmw.CorrelationIDFromContext(r.Context())
 
 	userID, err := h.currentUserID(r)
@@ -214,10 +188,8 @@ func (h *ReportHandler) Create(w http.ResponseWriter, r *http.Request) {
 		images = append(images, *reportImage)
 	}
 
-	reportID, err := h.reportService.Create(ctx, request.ProductName, request.Description, category, brand, seller, request.ProductURL, userID, images)
+	reportID, err := h.reportService.Create(r.Context(), request.ProductName, request.Description, category, brand, seller, request.ProductURL, userID, images)
 	if err != nil {
-		span.RecordError(err)
-		// http.Error(w, "could not create report", http.StatusInternalServerError)
 		responseUtil.WriteErrorJSON(w, errorMessage.ErrCreateReport, correlationID)
 		return
 	}
@@ -226,9 +198,6 @@ func (h *ReportHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ReportHandler) AddComment(w http.ResponseWriter, r *http.Request) {
-	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.AddComment")
-	defer span.End()
-
 	correlationID := httpmw.CorrelationIDFromContext(r.Context())
 
 	reportID, ok := reportID(w, r)
@@ -249,9 +218,7 @@ func (h *ReportHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 		responseUtil.WriteErrorJSON(w, errorMessage.ErrInvalidRequest, correlationID)
 		return
 	}
-	if err := h.reportService.AddComment(ctx, reportID, userID, request.Body); err != nil {
-		span.RecordError(err)
-		// http.Error(w, "could not add comment", http.StatusInternalServerError)
+	if err := h.reportService.AddComment(r.Context(), reportID, userID, request.Body); err != nil {
 		responseUtil.WriteErrorJSON(w, errorMessage.ErrAddComment, correlationID)
 		return
 	}
@@ -260,9 +227,6 @@ func (h *ReportHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ReportHandler) ToggleLike(w http.ResponseWriter, r *http.Request) {
-	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.ToggleLike")
-	defer span.End()
-
 	correlationID := httpmw.CorrelationIDFromContext(r.Context())
 
 	reportID, ok := reportID(w, r)
@@ -276,10 +240,8 @@ func (h *ReportHandler) ToggleLike(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	locale := h.getLocaleFromClaims(r)
-	report, err := h.reportService.GetActive(ctx, locale, reportID)
+	report, err := h.reportService.GetActive(r.Context(), locale, reportID)
 	if err != nil {
-		span.RecordError(err)
-		// http.Error(w, "report not found", http.StatusNotFound)
 		responseUtil.WriteErrorJSON(w, errorMessage.ReportNotFound, correlationID)
 		return
 	}
@@ -310,9 +272,6 @@ func (h *ReportHandler) ToggleLike(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ReportHandler) AddAlternative(w http.ResponseWriter, r *http.Request) {
-	ctx, span := otel.Tracer("verschlechtert/backend").Start(r.Context(), "report.handler.AddAlternative")
-	defer span.End()
-
 	correlationID := httpmw.CorrelationIDFromContext(r.Context())
 
 	reportID, ok := reportID(w, r)
@@ -345,8 +304,7 @@ func (h *ReportHandler) AddAlternative(w http.ResponseWriter, r *http.Request) {
 
 	brand := &Brand{id: request.BrandID}
 	seller := &Seller{id: request.SellerID}
-	if err := h.reportService.AddAlternative(ctx, reportID, request.ProductName, brand, seller, request.ProductURL, userID); err != nil {
-		// http.Error(w, "could not add alternative", http.StatusInternalServerError)
+	if err := h.reportService.AddAlternative(r.Context(), reportID, request.ProductName, brand, seller, request.ProductURL, userID); err != nil {
 		responseUtil.WriteErrorJSON(w, errorMessage.ErrAddAlternative, correlationID)
 		return
 	}

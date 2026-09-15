@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func HealthCheck(w http.ResponseWriter, r *http.Request) {
@@ -68,5 +69,7 @@ func (rt *Router) Setup() http.Handler {
 		rt.reportHandler.RegisterRoutes(r)
 	})
 
-	return r
+	instrumented := otelhttp.NewHandler(r, "http.server")
+
+	return instrumented
 }
