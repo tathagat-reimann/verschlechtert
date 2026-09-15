@@ -20,16 +20,31 @@ import (
 	"verschlechtert/backend/internal/router"
 	"verschlechtert/backend/internal/tracing"
 	"verschlechtert/backend/internal/user"
+
+	"github.com/exaring/otelpgx"
 )
 
 // NewPool creates a Postgres connection pool from a DATABASE_URL connection string.
 func createPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
-	pool, err := pgxpool.New(ctx, databaseURL)
+	// 1. Parse config instead of using pgxpool.New
+	config, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Attach OpenTelemetry tracer
+	config.ConnConfig.Tracer = otelpgx.NewTracer()
+
+	// 3. Create pool with config
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("creating pgx pool: %w", err)
 	}
 	if err := pool.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("pinging database: %w", err)
+	}
+	if err := otelpgx.RecordStats(pool); err != nil {
+		return nil, fmt.Errorf("unable to record database stats: %w", err)
 	}
 	return pool, nil
 }

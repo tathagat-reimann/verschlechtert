@@ -4,9 +4,6 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 type UserRepository struct {
@@ -18,14 +15,6 @@ func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
 }
 
 func (repo *UserRepository) Save(ctx context.Context, user *User) (*User, error) {
-	ctx, span := otel.Tracer("verschlechtert/backend").Start(ctx, "user.repo.Save",
-		trace.WithAttributes(
-			attribute.String("user.firebase_uid", user.GetFirebaseUID()),
-			attribute.String("user.locale", user.GetLocale()),
-		),
-	)
-	defer span.End()
-
 	persistedUser := &User{}
 	err := repo.pool.QueryRow(ctx, `
 	INSERT INTO appuser (
@@ -60,27 +49,18 @@ func (repo *UserRepository) Save(ctx context.Context, user *User) (*User, error)
 		&persistedUser.active,
 	)
 	if err != nil {
-		span.RecordError(err)
 		return nil, err
 	}
 	return persistedUser, nil
 }
 
 func (repo *UserRepository) Deactivate(ctx context.Context, userID int64) error {
-	ctx, span := otel.Tracer("verschlechtert/backend").Start(ctx, "user.repo.Deactivate",
-		trace.WithAttributes(
-			attribute.Int64("user.id", userID),
-		),
-	)
-	defer span.End()
-
 	_, err := repo.pool.Exec(ctx, `
 		UPDATE appuser
 		SET active = false, updated_at = now()
 		WHERE id = $1
 	`, userID)
 	if err != nil {
-		span.RecordError(err)
 		return err
 	}
 	return nil
