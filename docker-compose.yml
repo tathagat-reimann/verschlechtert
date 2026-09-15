@@ -40,6 +40,12 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:latest
     restart: unless-stopped
+    command:
+      - --query.ui-config=/etc/jaeger/jaeger-ui.json
+    environment:
+      JAEGER_ENDPOINT: http://localhost:16686
+    volumes:
+      - ./jaeger-ui-config.json:/etc/jaeger/jaeger-ui.json:ro
     ports:
       - "4317:4317"
       - "4318:4318"

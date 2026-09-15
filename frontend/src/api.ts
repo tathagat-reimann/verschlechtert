@@ -3,6 +3,9 @@ import { auth } from "./firebase";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 // Calls the Go backend, attaching the current user's Firebase ID token as a Bearer token.
+type ApiEnvelope<T> = { data: T };
+type ApiErrorBody = { code?: string; message?: string; correlationId?: string; error?: ApiErrorBody };
+
 export async function apiFetch(path: string, init: RequestInit = {}) {
   const user = auth.currentUser;
   const headers = new Headers(init.headers);
@@ -14,9 +17,16 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
 
   const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
   if (!response.ok) {
-    throw new Error(await response.text());
+    const payload = await response.json().catch(() => null) as ApiErrorBody | null;
+    const errorPayload = payload?.error ?? payload;
+    throw new Error(errorPayload?.message ?? response.statusText ?? "Request failed");
   }
   return response;
+}
+
+async function unwrapData<T>(response: Response): Promise<T> {
+  const payload = await response.json() as ApiEnvelope<T> | T;
+  return (payload as ApiEnvelope<T>).data ?? (payload as T);
 }
 
 export type Report = {
@@ -112,7 +122,7 @@ export type Me = {
 
 export async function getMe() {
   const response = await apiFetch("/api/me");
-  return response.json() as Promise<Me>;
+  return unwrapData<Me>(response);
 }
 
 export async function updateLocale(locale: string) {
@@ -121,7 +131,7 @@ export async function updateLocale(locale: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ locale }),
   });
-  return response.json() as Promise<Me>;
+  return unwrapData<Me>(response);
 }
 
 export type ReportsPage = { reports: Report[]; hasMore: boolean };
@@ -130,12 +140,12 @@ export async function getLatestReports(query = "", locale = "de", limit = 24, of
   const params = new URLSearchParams({ locale, limit: String(limit), offset: String(offset) });
   if (query) params.set("q", query);
   const response = await apiFetch(`/api/reports?${params.toString()}`);
-  return response.json() as Promise<ReportsPage>;
+  return unwrapData<ReportsPage>(response);
 }
 
-export async function getReportDetail(id: number, locale = "de") {
+export async function getReportDetail(id: number, _locale = "de") {
   const response = await apiFetch(`/api/reports/${id}`);
-  return response.json() as Promise<ReportDetail>;
+  return unwrapData<ReportDetail>(response);
 }
 
 export async function addReportComment(id: number, body: string) {
@@ -144,7 +154,7 @@ export async function addReportComment(id: number, body: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ body }),
   });
-  return response.json() as Promise<Comment>;
+  return unwrapData<Comment>(response);
 }
 
 export async function addReportAlternative(id: number, payload: { brandId: number; sellerId: number; productName: string; productUrl?: string }) {
@@ -153,22 +163,22 @@ export async function addReportAlternative(id: number, payload: { brandId: numbe
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return response.json() as Promise<Alternative>;
+  return unwrapData<Alternative>(response);
 }
 
 export async function toggleReportLike(id: number) {
   const response = await apiFetch(`/api/reports/${id}/like`, { method: "POST" });
-  return response.json() as Promise<{ liked: boolean; count: number }>;
+  return unwrapData<{ liked: boolean; count: number }>(response);
 }
 
-export async function getCatalogOptions(locale = "de") {
+export async function getCatalogOptions(_locale = "de") {
   const response = await apiFetch(`/api/catalog/options`);
-  return response.json() as Promise<CatalogOptions>;
+  return unwrapData<CatalogOptions>(response);
 }
 
-export async function getMySubmissions(locale = "de") {
+export async function getMySubmissions(_locale = "de") {
   const response = await apiFetch(`/api/me/submissions`);
-  return response.json() as Promise<Submission[]>;
+  return unwrapData<Submission[]>(response);
 }
 
 export async function createSubmission(payload: Record<string, unknown>) {
