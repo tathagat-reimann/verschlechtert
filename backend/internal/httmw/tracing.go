@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var tracer = otel.Tracer("verschlechtert/backend")
@@ -35,6 +37,10 @@ func CorrelationIDMiddleware(next http.Handler) http.Handler {
 		ctx := ContextWithCorrelationID(r.Context(), id)
 		r = r.WithContext(ctx)
 		w.Header().Set("X-Correlation-ID", id)
+
+		if span := trace.SpanFromContext(r.Context()); span != nil && span.IsRecording() {
+			span.SetAttributes(attribute.String("correlation_id", id))
+		}
 
 		next.ServeHTTP(w, r)
 	})
@@ -67,33 +73,4 @@ func userIDFromContext(ctx context.Context) int64 {
 	}
 
 	return 0
-}
-
-// OpenTelemetryTracing returns middleware that records request tracing information
-func OpenTelemetryTracing(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		// 1. Extract or generate correlation ID
-		id := r.Header.Get("X-Correlation-ID")
-		if id == "" {
-			id = uuid.NewString()
-		}
-
-		// 2. Inject correlation ID into context
-		ctx := ContextWithCorrelationID(r.Context(), id)
-
-		// 3. Inject user ID into context (your existing logic)
-		userID := userIDFromContext(ctx)
-		if userID > 0 {
-			ctx = context.WithValue(ctx, "user.id", userID)
-		}
-
-		// 4. Propagate updated context
-		r = r.WithContext(ctx)
-
-		// 5. Set correlation ID header
-		w.Header().Set("X-Correlation-ID", id)
-
-		next.ServeHTTP(w, r)
-	})
 }

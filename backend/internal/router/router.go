@@ -42,7 +42,6 @@ func (rt *Router) Setup() http.Handler {
 
 	r.Use(middleware.Logger)
 	r.Use(httpmw.CorrelationIDMiddleware)
-	r.Use(httpmw.OpenTelemetryTracing)
 	r.Use(httpmw.PrometheusMetrics)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{

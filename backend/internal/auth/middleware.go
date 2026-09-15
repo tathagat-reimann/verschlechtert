@@ -7,6 +7,8 @@ import (
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type contextKey string
@@ -37,6 +39,11 @@ func Middleware(client *auth.Client) func(http.Handler) http.Handler {
 			}
 
 			ctx := context.WithValue(r.Context(), userContextKey, token)
+			if span := trace.SpanFromContext(ctx); span != nil && span.IsRecording() {
+				if userID, ok := token.Claims["userID"].(float64); ok && userID > 0 {
+					span.SetAttributes(attribute.Int64("user.id", int64(userID)))
+				}
+			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
